@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v0.1.2...v0.1.3) (2025-08-22)
+
+
+### Bug Fixes
+
+* update cobertura-action version to v14 in workflows for improved functionality ([b5218ed](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/b5218ed86cea9bf7c6990fcb9704b61a9f219864))
+
 ## [0.1.2](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v0.1.1...v0.1.2) (2025-08-22)
 
 
