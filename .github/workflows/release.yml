@@ -29,6 +29,7 @@ jobs:
               with:
                   config-file: .github/workflows/.release-please-config.json
                   manifest-file: .github/workflows/.release-please-manifest.json
+                  debug: true
 
             - name: Debug Release Please outputs
               run: |
