@@ -69,15 +69,12 @@ jobs:
             - name: Extract coverage percentage
               id: coverage
               continue-on-error: true
-              uses: 5monkeys/cobertura-action@v14
+              uses: irongut/CodeCoverageSummary@v1.3.0
               with:
-                  path: coverage.xml
-                  repo_token: ${{ secrets.GITHUB_TOKEN }}
-                  minimum_coverage: 0
-                  fail_below_threshold: false
-                  show_missing: false
-                  show_branch: false
-                  only_changed_files: false
+                  filename: coverage.xml
+                  badge: false
+                  format: text
+                  output: console
 
             - name: Update coverage badge
               continue-on-error: true
@@ -87,8 +84,8 @@ jobs:
                   gistID: ${{ secrets.GIST_ID }}
                   filename: coverage.json
                   label: coverage
-                  message: ${{ steps.coverage.outputs.coverage-percentage || 'N/A' }}%
-                  valColorRange: ${{ steps.coverage.outputs.coverage-percentage || '0' }}
+                  message: ${{ steps.coverage.outputs.line-rate || 'N/A' }}%
+                  valColorRange: ${{ steps.coverage.outputs.line-rate || '0' }}
                   maxColorRange: 100
                   minColorRange: 0
                   namedLogo: pytest
