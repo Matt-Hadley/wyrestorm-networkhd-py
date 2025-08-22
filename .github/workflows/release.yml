@@ -8,8 +8,10 @@ on:
 permissions:
     contents: write
     pull-requests: write
-    issues: write
+    issues: write # For labels
     id-token: write # For attestations
+    attestations: write
+    checks: write
 
 concurrency:
     group: release-${{ github.ref }}
