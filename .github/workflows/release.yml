@@ -29,19 +29,6 @@ jobs:
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
                   release-type: python
-                  package-name: wyrestorm-networkhd
-                  include-v-in-tag: true
-                  changelog-types:
-                      '[{"type":"feat","section":"✨ Features","hidden":false},{"type":"fix","section":"🐛 Bug
-                      Fixes","hidden":false},{"type":"perf","section":"⚡
-                      Performance","hidden":false},{"type":"revert","section":"⏪
-                      Reverts","hidden":false},{"type":"docs","section":"📚
-                      Documentation","hidden":false},{"type":"style","section":"💄
-                      Styles","hidden":true},{"type":"chore","section":"🔧 Miscellaneous
-                      Chores","hidden":true},{"type":"refactor","section":"♻️ Code
-                      Refactoring","hidden":false},{"type":"test","section":"✅
-                      Tests","hidden":true},{"type":"build","section":"📦 Build
-                      System","hidden":true},{"type":"ci","section":"🔄 Continuous Integration","hidden":true}]'
 
             - name: Debug Release Please outputs
               run: |
