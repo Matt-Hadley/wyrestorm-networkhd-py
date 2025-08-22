@@ -29,6 +29,7 @@ jobs:
               with:
                   config-file: .github/workflows/.release-please-config.json
                   manifest-file: .github/workflows/.release-please-manifest.json
+                  bootstrap-sha: 3e4e4fee67b32e0c1336924505fe8b5dc5999fce
 
             - name: Debug Release Please outputs
               run: |
