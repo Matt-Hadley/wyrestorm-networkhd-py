@@ -23,7 +23,7 @@ Thank you for your interest in contributing! This guide will help you get starte
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/wyrestorm-networkhd-py.git
+git clone https://github.com/Matt-Hadley/wyrestorm-networkhd-py.git
 cd wyrestorm-networkhd
 
 # Complete development setup (creates venv, installs deps, sets up pre-commit)
@@ -168,7 +168,7 @@ How you think it should work
 
 **DO NOT** create public issues for security vulnerabilities. Instead:
 
-1. Email: [security@yourdomain.com]
+1. Email: [81762940+Matt-Hadley@users.noreply.github.com]
 1. Use subject: `[SECURITY] WyreStorm NetworkHD - [Brief Description]`
 1. Include detailed reproduction steps
 

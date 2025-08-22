@@ -9,7 +9,7 @@ permissions:
     contents: write
     pull-requests: write
     issues: write
-    id-token: write # For PyPI attestations
+    id-token: write # For attestations
 
 concurrency:
     group: release-${{ github.ref }}
@@ -51,11 +51,45 @@ jobs:
             - name: Setup environment
               uses: ./.github/actions/setup-environment
 
-            - name: Pre-release validation
+            - name: Cache dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cache/pip
+                      .venv
+                  key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml') }}
+                  restore-keys: |
+                      ${{ runner.os }}-python-
+
+            - name: Run health check
               run: make health-check
 
-            - name: Build package
-              run: make build
+            - name: Extract coverage percentage
+              id: coverage
+              continue-on-error: true
+              uses: 5monkeys/cobertura-action@master
+              with:
+                  path: coverage.xml
+                  repo_token: ${{ secrets.GITHUB_TOKEN }}
+                  minimum_coverage: 0
+                  fail_below_threshold: false
+                  show_missing: false
+                  show_branch: false
+                  only_changed_files: false
+
+            - name: Update coverage badge
+              continue-on-error: true
+              uses: schneegans/dynamic-badges-action@v1.7.0
+              with:
+                  auth: ${{ secrets.GIST_SECRET }}
+                  gistID: ${{ secrets.GIST_ID }}
+                  filename: coverage.json
+                  label: coverage
+                  message: ${{ steps.coverage.outputs.coverage-percentage || 'N/A' }}%
+                  valColorRange: ${{ steps.coverage.outputs.coverage-percentage || '0' }}
+                  maxColorRange: 100
+                  minColorRange: 0
+                  namedLogo: pytest
 
             - name: Upload release assets
               uses: softprops/action-gh-release@v2
@@ -64,6 +98,12 @@ jobs:
                   files: |
                       dist/*.whl
                   fail_on_unmatched_files: true
+
+            - name: Attest build artifacts
+              continue-on-error: true
+              uses: actions/attest-build-provenance@v2
+              with:
+                  subject-path: "dist/*.whl"
 
             - name: Publish to PyPI
               uses: pypa/gh-action-pypi-publish@release/v1

@@ -194,7 +194,7 @@ VERBOSE=1 make test
 ### Test Categories
 
 - **Unit Tests**: Test individual functions and classes in isolation
-- **Benchmark Tests** (`@pytest.mark.benchmark`): Performance testing
+- **Async Tests**: Tests for async functionality using `@pytest.mark.asyncio`
 
 ### VS Code Integration
 

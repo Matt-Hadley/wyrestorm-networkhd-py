@@ -171,7 +171,7 @@ test: ## Run all tests
 
 test-cov: ## Run tests with coverage
 	$(ECHO) "$(YELLOW)Running tests with coverage...$(NC)"
-	$(Q)$(PYTEST) --cov=src/$(PROJECT_NAME) --cov-report=term-missing --cov-report=html
+	$(Q)$(PYTEST) --cov=src/$(PROJECT_NAME) --cov-report=term-missing --cov-report=html --cov-report=xml
 	@echo "$(GREEN)✓$(NC) Coverage report generated"
 
 # =============================================================================

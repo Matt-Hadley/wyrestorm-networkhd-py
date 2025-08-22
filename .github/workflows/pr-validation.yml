@@ -9,7 +9,6 @@ on:
 permissions:
     contents: read
     pull-requests: write
-    id-token: write # For artifact attestations
 
 concurrency:
     group: pr-validation-${{ github.event.pull_request.number }}
@@ -35,12 +34,6 @@ jobs:
               id: setup
               uses: ./.github/actions/setup-environment
 
-            - name: Validate configuration
-              run: make validate-config
-
-            - name: Check versions
-              run: make check-versions
-
             - name: Cache dependencies
               uses: actions/cache@v4
               with:
@@ -51,23 +44,10 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-python-
 
-            - name: Check project structure
-              run: make check-project-structure
+            - name: Run health check
+              run: make health-check
 
-            - name: Check code formatting
-              run: make format-check
-
-            - name: Run quality checks
-              run: make check
-
-            - name: Security audit
-              run: make security-audit
-
-            - name: Run tests with coverage
-              run: make test-cov
-
-            - name: Extract coverage percentage
-              id: coverage
+            - name: Coverage report
               continue-on-error: true
               uses: 5monkeys/cobertura-action@master
               with:
@@ -79,23 +59,6 @@ jobs:
                   show_branch: false
                   only_changed_files: false
 
-            - name: Generate coverage badge
-              continue-on-error: true
-              uses: schneegans/dynamic-badges-action@v1.7.0
-              with:
-                  auth: ${{ secrets.GIST_SECRET }}
-                  gistID: ${{ secrets.GIST_ID }}
-                  filename: coverage.json
-                  label: coverage
-                  message: ${{ steps.coverage.outputs.coverage-percentage || 'N/A' }}%
-                  valColorRange: ${{ steps.coverage.outputs.coverage-percentage || '0' }}
-                  maxColorRange: 100
-                  minColorRange: 0
-                  namedLogo: pytest
-
-            - name: Build pre-release package
-              run: make build
-
             - name: Upload PR artifacts
               uses: actions/upload-artifact@v4
               with:
@@ -105,9 +68,3 @@ jobs:
                       htmlcov/
                       dist/
                   retention-days: 30
-
-            - name: Attest build artifacts
-              continue-on-error: true
-              uses: actions/attest-build-provenance@v2
-              with:
-                  subject-path: "dist/*.whl"
