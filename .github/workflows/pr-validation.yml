@@ -50,7 +50,7 @@ jobs:
 
             - name: Coverage report
               continue-on-error: true
-              uses: 5monkeys/cobertura-action@master
+              uses: 5monkeys/cobertura-action@v14
               with:
                   path: coverage.xml
                   repo_token: ${{ secrets.GITHUB_TOKEN }}
