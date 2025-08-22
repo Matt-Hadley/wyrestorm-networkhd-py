@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v0.1.1...v0.1.2) (2025-08-22)
+
+
+### Bug Fixes
+
+* update permissions in workflow files to include checks for improved CI/CD functionality ([237a9d6](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/237a9d6881c5745bbbe88b9251d6a66b64c3dbdf))
+
 ## [0.1.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v0.1.0...v0.1.1) (2025-08-22)
 
 
