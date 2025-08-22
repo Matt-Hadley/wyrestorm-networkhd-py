@@ -9,7 +9,7 @@ updates:
       assignees:
           - "Matt-Hadley"
       commit-message:
-          prefix: "deps"
+          prefix: "chore"
           include: "scope"
       labels:
           - "dependencies"
@@ -24,7 +24,7 @@ updates:
       assignees:
           - "Matt-Hadley"
       commit-message:
-          prefix: "ci"
+          prefix: "chore"
           include: "scope"
       labels:
           - "dependencies"
