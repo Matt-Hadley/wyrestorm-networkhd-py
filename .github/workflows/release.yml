@@ -27,9 +27,8 @@ jobs:
             - uses: googleapis/release-please-action@v4
               id: release
               with:
-                  config-file: .github/workflows/.release-please-config.json
-                  manifest-file: .github/workflows/.release-please-manifest.json
-                  bootstrap-sha: 3e4e4fee67b32e0c1336924505fe8b5dc5999fce
+                  release-type: python
+                  package-name: wyrestorm-networkhd
 
             - name: Debug Release Please outputs
               run: |
