@@ -41,6 +41,7 @@ jobs:
         if: ${{ needs.release-please.outputs.releases_created == 'true' }}
         runs-on: ubuntu-latest
         timeout-minutes: 10
+        environment: pypi
         steps:
             - name: Checkout code
               uses: actions/checkout@v5
@@ -67,6 +68,5 @@ jobs:
             - name: Publish to PyPI
               uses: pypa/gh-action-pypi-publish@release/v1
               with:
-                  password: ${{ secrets.PYPI_API_TOKEN }}
                   packages-dir: dist/
                   attestations: true
