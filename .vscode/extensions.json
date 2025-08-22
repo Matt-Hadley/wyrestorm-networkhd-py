@@ -1,0 +1,20 @@
+{
+    "recommendations": [
+        "charliermarsh.ruff",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "tamasfe.even-better-toml",
+        "ryanluker.vscode-coverage-gutters",
+        "ms-vscode.makefile-tools",
+        "ms-python.mypy-type-checker",
+        "njpwerner.autodocstring",
+        "ms-vscode.test-adapter-converter",
+        "littlefoxteam.vscode-python-test-adapter",
+        "redhat.vscode-yaml",
+        "github.vscode-github-actions",
+        "ms-vscode.vscode-json",
+        "streetsidesoftware.code-spell-checker",
+        "editorconfig.editorconfig",
+        "esbenp.prettier-vscode"
+    ]
+}

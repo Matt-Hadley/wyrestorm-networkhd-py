@@ -1,0 +1,72 @@
+# Release Management - Automated Releases with Release Please
+name: Release
+
+on:
+    push:
+        branches: [main]
+
+permissions:
+    contents: write
+    pull-requests: write
+    issues: write
+    id-token: write # For PyPI attestations
+
+concurrency:
+    group: release-${{ github.ref }}
+    cancel-in-progress: false # Don't cancel releases
+
+jobs:
+    release-please:
+        name: Release Please
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        outputs:
+            releases_created: ${{ steps.release.outputs.releases_created }}
+            tag_name: ${{ steps.release.outputs.tag_name }}
+        steps:
+            - uses: googleapis/release-please-action@v4
+              id: release
+              with:
+                  config-file: .github/workflows/.release-please-config.json
+                  manifest-file: .github/workflows/.release-please-manifest.json
+
+            - name: Debug Release Please outputs
+              run: |
+                  echo "Releases created: '${{ steps.release.outputs.releases_created }}'"
+                  echo "Tag name: '${{ steps.release.outputs.tag_name }}'"
+
+    publish:
+        name: Publish to PyPI
+        needs: release-please
+        if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+
+            - name: Setup environment
+              uses: ./.github/actions/setup-environment
+
+            - name: Pre-release validation
+              run: make health-check
+
+            - name: Build package
+              run: make build
+
+            - name: Upload release assets
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ needs.release-please.outputs.tag_name }}
+                  files: |
+                      dist/*.whl
+                  fail_on_unmatched_files: true
+
+            - name: Publish to PyPI
+              uses: pypa/gh-action-pypi-publish@release/v1
+              with:
+                  password: ${{ secrets.PYPI_API_TOKEN }}
+                  packages-dir: dist/
+                  attestations: true

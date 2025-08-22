@@ -1,0 +1,29 @@
+{
+    "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+    "packages": {
+        ".": {
+            "release-type": "python",
+            "bump-minor-pre-major": true,
+            "bump-patch-for-minor-pre-major": true,
+            "draft": false,
+            "prerelease": false,
+            "include-v-in-tag": true,
+            "pull-request-title-pattern": "chore: release ${version}",
+            "separate-pull-requests": false,
+            "changelog-path": "CHANGELOG.md",
+            "changelog-sections": [
+                { "type": "feat", "section": "✨ Features", "hidden": false },
+                { "type": "fix", "section": "🐛 Bug Fixes", "hidden": false },
+                { "type": "perf", "section": "⚡ Performance", "hidden": false },
+                { "type": "revert", "section": "⏪ Reverts", "hidden": false },
+                { "type": "docs", "section": "📚 Documentation", "hidden": false },
+                { "type": "style", "section": "💄 Styles", "hidden": true },
+                { "type": "chore", "section": "🔧 Miscellaneous Chores", "hidden": true },
+                { "type": "refactor", "section": "♻️ Code Refactoring", "hidden": false },
+                { "type": "test", "section": "✅ Tests", "hidden": true },
+                { "type": "build", "section": "📦 Build System", "hidden": true },
+                { "type": "ci", "section": "🔄 Continuous Integration", "hidden": true }
+            ]
+        }
+    }
+}

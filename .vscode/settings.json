@@ -1,0 +1,58 @@
+{
+    // Python interpreter
+    "python.defaultInterpreterPath": "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
+    // Editor settings to match pyproject.toml (120 char line length)
+    "editor.rulers": [120],
+    "editor.wordWrap": "off",
+    "editor.formatOnSave": true,
+    // Python-specific settings
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+        },
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+    },
+    // Ruff configuration (reads from pyproject.toml automatically)
+    "ruff.configuration": "${workspaceFolder}/pyproject.toml",
+    // Testing configuration
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": ["tests", "-v"],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestPath": "pytest",
+    "python.testing.autoTestDiscoverOnSaveEnabled": true,
+    "python.testing.cwd": "${workspaceFolder}",
+    // Coverage configuration
+    "coverage-gutters.coverageFileNames": ["coverage.xml", ".coverage", "htmlcov/coverage.xml"],
+    "coverage-gutters.showLineCoverage": true,
+    "coverage-gutters.showRulerCoverage": true,
+    "coverage-gutters.highlightdark": "rgba(255, 255, 255, 0.2)",
+    // File management
+    "files.associations": {
+        "*.py": "python",
+        "pyproject.toml": "toml"
+    },
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    // Editor display
+    "editor.renderWhitespace": "boundary",
+    // Prettier configuration for documentation files
+    "[markdown]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+    },
+    "[yaml]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+    },
+    "[json]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+    },
+    // Force VSCode to use system prettier (same version as CLI)
+    "prettier.prettierPath": "/usr/local/bin/prettier"
+}

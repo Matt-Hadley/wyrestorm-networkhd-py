@@ -1,0 +1,205 @@
+[build-system]
+requires = ["setuptools>=80.9.0", "setuptools-scm>=8.1.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wyrestorm-networkhd"
+dynamic = ["version"]
+description = "Python client library for WyreStorm NetworkHD API operations - matrix switching, device control, video walls, and multiview."
+authors = [
+    { name = "Matt-Hadley", email = "81762940+Matt-Hadley@users.noreply.github.com" },
+]
+readme = "README.md"
+requires-python = ">=3.12"
+keywords = [
+    "wyrestorm",
+    "networkhd",
+    "api",
+    "matrix",
+    "switching",
+    "video",
+    "wall",
+    "multiview",
+    "hdmi",
+    "av",
+    "control",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Hardware",
+    "Topic :: System :: Networking",
+    "Topic :: Multimedia :: Video",
+]
+dependencies = ["paramiko>=3.0.0"]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.12.10",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.0.0",
+    "pytest-asyncio>=1.0.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-benchmark>=4.0.0",
+    "bandit[toml]>=1.7.0",
+    "pip-audit>=2.6.0",
+    "mypy>=1.8.0",
+    "build>=1.0.0",
+    "twine>=6.1.0",
+    "pre-commit>=3.6.0",
+    "vulture>=2.1.4",
+    "pyupgrade>=3.10.0",
+    "setuptools-scm>=8.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py"
+Repository = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py.git"
+Issues = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py/issues"
+Documentation = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py#readme"
+Changelog = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py/releases"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = false
+
+
+[tool.setuptools_scm]
+write_to = "src/wyrestorm_networkhd/_version.py"
+tag_regex = "^v(?P<version>[^\\+]+)(?:\\+(?P<local>.*))?$"
+git_describe_command = [
+    "git",
+    "describe",
+    "--dirty",
+    "--tags",
+    "--long",
+    "--match",
+    "v*",
+]
+
+# Bandit security linter configuration
+[tool.bandit]
+exclude_dirs = ["tests", "htmlcov", ".venv", "venv"]
+skips = ["B101"]                                     # Skip assert_used test
+[tool.coverage]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src/wyrestorm_networkhd"]
+omit = [
+    "tests/*",
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    "example.py",
+    "src/wyrestorm_networkhd/__init__.py",
+    "src/wyrestorm_networkhd/client.py",
+    "src/wyrestorm_networkhd/exceptions.py",
+    "src/wyrestorm_networkhd/logging_config.py",
+]
+
+# Logging configuration
+[tool.logging]
+default_level = "INFO"
+default_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+default_date_format = "%Y-%m-%d %H:%M:%S"
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+strict_optional = true
+no_implicit_reexport = true
+show_error_codes = true
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "paramiko.*"
+ignore_missing_imports = true
+
+# Pytest configuration
+[tool.pytest]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src/wyrestorm_networkhd",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml",
+    "--durations=10",
+    "--tb=short",
+]
+markers = [
+    "unit: marks tests as unit tests",
+    "benchmark: marks tests as performance benchmarks",
+]
+
+# Ruff configuration - replaces Black, isort, and Flake8
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+# Ruff formatter configuration (replaces Black)
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501", # line too long, handled by ruff format
+    "B008", # do not perform function calls in argument defaults
+]
+
+# Ruff import sorting configuration (replaces isort)
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["wyrestorm_networkhd"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"] # Allow unused imports in __init__.py
