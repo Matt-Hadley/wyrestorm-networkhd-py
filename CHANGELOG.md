@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v0.1.0...v0.1.1) (2025-08-22)
+
+
+### Bug Fixes
+
+* update CI/CD workflows and documentation for improved health checks and coverage reporting ([94a9db7](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/94a9db7a442a052687c3c5b6a1bdf9151e0c8663))
+
 ## 0.1.0 (2025-08-22)
 
 ### Features
