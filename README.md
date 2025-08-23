@@ -341,39 +341,6 @@ make health-check
 VERBOSE=1 make test
 ```
 
-### Testing
-
-This project uses pytest for comprehensive testing with coverage reporting.
-
-#### Running Tests
-
-```bash
-# Run all tests
-make test
-
-# Run with coverage
-make test-cov
-
-# For verbose output
-VERBOSE=1 make test
-```
-
-#### Test Categories
-
-- **Unit Tests**: Test individual functions and classes in isolation
-- **Async Tests**: Tests for async functionality using `@pytest.mark.asyncio`
-
-#### VS Code Integration
-
-The project includes VS Code configuration for:
-
-- **Testing Panel**: Run and debug tests directly in the editor
-- **Coverage Display**: Visual coverage indicators in the gutter
-- **Debug Configurations**: Debug tests with breakpoints
-- **Tasks**: Quick access to common testing operations
-
-Install the recommended extensions and reload VS Code to enable testing features.
-
 ## 📚 Documentation
 
 Documentation is available in the source code through comprehensive docstrings and type hints. Key documentation
