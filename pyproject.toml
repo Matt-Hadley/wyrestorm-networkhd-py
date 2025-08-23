@@ -45,6 +45,7 @@ dev = [
     "pytest>=8.4.1",
     "pytest-cov>=6.0.0",
     "pytest-asyncio>=1.0.0",
+    "pytest-mock>=3.12.0",
     "bandit[toml]>=1.7.0",
     "pip-audit>=2.6.0",
     "mypy>=1.8.0",
@@ -56,9 +57,7 @@ dev = [
     "setuptools-scm>=8.1.0",
 ]
 
-rs232 = [
-    "async-pyserial>=0.1.0",
-]
+rs232 = ["async-pyserial>=0.1.0"]
 
 [project.urls]
 Homepage = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py"
@@ -117,10 +116,9 @@ omit = [
     "*/__pycache__/*",
     "*/site-packages/*",
     "src/wyrestorm_networkhd/__init__.py",
-    "src/wyrestorm_networkhd/client.py",
+    "src/wyrestorm_networkhd/_version.py",
     "src/wyrestorm_networkhd/exceptions.py",
     "src/wyrestorm_networkhd/logging_config.py",
-    "src/wyrestorm_networkhd/_version.py",
 ]
 
 # Logging configuration
