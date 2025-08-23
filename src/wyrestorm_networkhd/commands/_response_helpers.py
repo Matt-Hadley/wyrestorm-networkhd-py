@@ -3,7 +3,7 @@
 import json
 from typing import Any
 
-from ..exceptions import CommandError, ResponseError
+from ..core.exceptions import CommandError, ResponseError
 
 
 def require_command_mirror(response: str, expected: str) -> bool:

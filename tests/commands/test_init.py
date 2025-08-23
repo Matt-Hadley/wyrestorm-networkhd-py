@@ -1,6 +1,6 @@
 from unittest.mock import Mock
 
-from wyrestorm_networkhd.client import NetworkHDClient
+from wyrestorm_networkhd import NetworkHDClient
 from wyrestorm_networkhd.commands import NHDAPI
 
 

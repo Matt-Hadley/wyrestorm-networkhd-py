@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from wyrestorm_networkhd.commands.media_stream_matrix_switch import MediaStreamMatrixSwitchCommands
-from wyrestorm_networkhd.exceptions import ResponseError
+from wyrestorm_networkhd.core.exceptions import ResponseError
 
 
 class TestMediaStreamMatrixSwitchCommands:

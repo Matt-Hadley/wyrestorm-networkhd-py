@@ -268,7 +268,7 @@ class EndpointAliasHostname:
             Response example: NHD-400-TX-E4CE02104E55's alias is source1
             Error format: "<device_name> does not exist."
         """
-        from ..exceptions import DeviceNotFoundError
+        from ..core.exceptions import DeviceNotFoundError
 
         # Check for "does not exist" error
         if " does not exist." in response:

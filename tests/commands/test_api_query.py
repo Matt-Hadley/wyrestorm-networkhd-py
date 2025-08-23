@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from wyrestorm_networkhd.commands.api_query import APIQueryCommands
-from wyrestorm_networkhd.exceptions import DeviceNotFoundError, DeviceQueryError
+from wyrestorm_networkhd.core.exceptions import DeviceNotFoundError, DeviceQueryError
 
 
 class TestAPIQueryCommands:

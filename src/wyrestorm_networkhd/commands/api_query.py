@@ -327,7 +327,7 @@ class APIQueryCommands:
                 if isinstance(device_info, dict) and "error" in device_info:
                     device_name = device_info.get("name", "unknown")
                     error_message = device_info.get("error", "unknown error")
-                    from ..exceptions import DeviceQueryError
+                    from ..core.exceptions import DeviceQueryError
 
                     raise DeviceQueryError(device_name, error_message)
 
@@ -385,7 +385,7 @@ class APIQueryCommands:
                 if isinstance(device_status, dict) and "error" in device_status:
                     device_name = device_status.get("name", "unknown")
                     error_message = device_status.get("error", "unknown error")
-                    from ..exceptions import DeviceQueryError
+                    from ..core.exceptions import DeviceQueryError
 
                     raise DeviceQueryError(device_name, error_message)
 

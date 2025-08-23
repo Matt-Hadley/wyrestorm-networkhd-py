@@ -11,13 +11,13 @@ except ImportError:
     __version__ = "dev"
 
 # Main exports
-from .client import ConnectionType, HostKeyPolicy, NetworkHDClient
 from .commands import NHDAPI
+from .core.client import ConnectionType, HostKeyPolicy, NetworkHDClient
 
 __all__ = [
     "NetworkHDClient",
-    "ConnectionType",
     "HostKeyPolicy",
+    "ConnectionType",
     "NHDAPI",
     "__version__",
 ]

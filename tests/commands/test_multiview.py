@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from wyrestorm_networkhd.commands.multiview import MultiviewCommands
-from wyrestorm_networkhd.exceptions import CommandError
+from wyrestorm_networkhd.core.exceptions import CommandError
 
 
 class TestMultiviewCommands:

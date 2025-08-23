@@ -1,6 +1,6 @@
 """Convenience wrapper for all command groups."""
 
-from ..client import NetworkHDClient
+from ..core.client import NetworkHDClient
 
 
 class NHDAPI:
