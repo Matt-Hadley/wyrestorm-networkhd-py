@@ -1,6 +1,7 @@
 """NetworkHD client with inheritance-based architecture."""
 
 import asyncio
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from enum import Enum
@@ -184,7 +185,7 @@ class _BaseNetworkHDClient(ABC):
 
         Args:
             command: The command string to send.
-            response_timeout: Maximum time to wait for response.
+            response_timeout: Maximum time to wait for response in seconds.
 
         Returns:
             The response string from the device.
@@ -386,8 +387,6 @@ class _BaseNetworkHDClient(ABC):
 
     def _record_command_sent(self) -> None:
         """Record that a command was sent."""
-        import time
-
         self._connection_metrics["commands_sent"] += 1
         self._connection_metrics["last_command_time"] = time.time()
 
@@ -434,8 +433,6 @@ class _BaseNetworkHDClient(ABC):
 
     def _record_failure(self) -> None:
         """Record a connection failure for circuit breaker logic."""
-        import time
-
         current_time = time.time()
 
         self._failure_count += 1
@@ -473,3 +470,13 @@ class _BaseNetworkHDClient(ABC):
             return False
 
         return True
+
+    def __del__(self):
+        """Destructor to ensure message dispatcher task is cleaned up."""
+        if (
+            hasattr(self, "_message_dispatcher_task")
+            and self._message_dispatcher_task
+            and not self._message_dispatcher_task.done()
+        ):
+            # If there's still a running task, cancel it
+            self._message_dispatcher_task.cancel()

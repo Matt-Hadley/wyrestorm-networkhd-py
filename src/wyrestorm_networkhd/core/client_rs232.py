@@ -164,7 +164,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
 
         Args:
             command: The command string to send.
-            response_timeout: Maximum time to wait for response (default: 10.0 seconds).
+            response_timeout: Maximum time to wait for response in seconds.
 
         Returns:
             The response string from the device.
