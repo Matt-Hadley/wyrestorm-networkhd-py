@@ -25,10 +25,11 @@ async def main():
     # Create client with SSH connection
     client = NetworkHDClientSSH(
         host="192.168.1.100",  # Replace with your NHD-CTL IP address
+        port=22,
         username="wyrestorm",
         password="networkhd",
-        timeout=10.0,
         ssh_host_key_policy="warn",  # Change to "auto_add" to auto-accept unknown keys
+        timeout=10.0,
     )
 
     try:

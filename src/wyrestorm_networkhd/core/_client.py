@@ -1,7 +1,9 @@
 """NetworkHD client with inheritance-based architecture."""
 
+import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from enum import Enum
 
 from ..logging_config import get_logger
 from ..models.api_notifications import (
@@ -10,23 +12,44 @@ from ..models.api_notifications import (
 )
 
 
+class _ConnectionState(Enum):
+    """Connection state enumeration (private)."""
+
+    DISCONNECTED = "disconnected"
+    CONNECTING = "connecting"
+    CONNECTED = "connected"
+    ERROR = "error"
+    RECONNECTING = "reconnecting"
+
+
 class _NotificationHandler:
     """Handles parsing and dispatching of NetworkHD API notifications."""
 
     def __init__(self):
+        """Initialize notification handler with parser and callbacks."""
         self._callbacks: dict[str, list[Callable[[NotificationObject], None]]] = {}
         self._parser = NotificationParser()
         self.logger = get_logger(f"{__name__}._NotificationHandler")
 
     def register_callback(self, notification_type: str, callback: Callable[[NotificationObject], None]) -> None:
-        """Register a callback for a specific notification type."""
+        """Register a callback for a specific notification type.
+
+        Args:
+            notification_type: Type of notification to listen for.
+            callback: Function to call when this notification type is received.
+        """
         if notification_type not in self._callbacks:
             self._callbacks[notification_type] = []
         self._callbacks[notification_type].append(callback)
         self.logger.debug(f"Registered callback for {notification_type} notifications")
 
     def unregister_callback(self, notification_type: str, callback: Callable[[NotificationObject], None]) -> None:
-        """Unregister a specific callback for a notification type."""
+        """Unregister a specific callback for a notification type.
+
+        Args:
+            notification_type: Type of notification.
+            callback: The callback function to remove.
+        """
         if notification_type in self._callbacks:
             try:
                 self._callbacks[notification_type].remove(callback)
@@ -37,7 +60,11 @@ class _NotificationHandler:
                 self.logger.warning(f"Callback not found for {notification_type} notifications")
 
     async def handle_notification(self, notification_line: str) -> None:
-        """Parse and dispatch a notification to registered callbacks."""
+        """Parse and dispatch a notification to registered callbacks.
+
+        Args:
+            notification_line: Raw notification string from the device.
+        """
         try:
             # Determine notification type directly from the notification string
             notification_type = self._parser.get_notification_type(notification_line)
@@ -70,12 +97,42 @@ class _BaseNetworkHDClient(ABC):
     """
 
     def __init__(self):
-        """Initialize base client with notification handler."""
+        """Initialize base client with notification handler and state management."""
         # Create notification handler (same for all protocols)
         self.notification_handler = _NotificationHandler()
 
+        # Connection state management
+        self._connection_state = _ConnectionState.DISCONNECTED
+        self._connection_error: str | None = None
+        self._last_connection_attempt: float | None = None
+
+        # Circuit breaker for connection failures
+        self._failure_count = 0
+        self._last_failure_time: float | None = None
+        self._circuit_open = False
+        self._circuit_open_time: float | None = None
+
+        # Command response handling (generic)
+        self._pending_commands: dict[str, asyncio.Queue] = {}
+        self._command_lock = asyncio.Lock()
+        self._command_id_counter = 0
+
+        # Connection health monitoring (generic)
+        self._last_heartbeat: float | None = None
+        self._heartbeat_interval: float = 30.0  # seconds
+        self._connection_metrics = {
+            "commands_sent": 0,
+            "commands_failed": 0,
+            "notifications_received": 0,
+            "last_command_time": None,
+        }
+
         # Set up logger for this client instance
         self.logger = get_logger(f"{__name__}.{self.__class__.__name__}")
+
+    # ============================================================================
+    # ABSTRACT METHODS - Must be implemented by subclasses
+    # ============================================================================
 
     @abstractmethod
     async def connect(self) -> None:
@@ -117,6 +174,38 @@ class _BaseNetworkHDClient(ABC):
         """
         pass
 
+    # ============================================================================
+    # PUBLIC METHODS - Configuration and Status
+    # ============================================================================
+
+    def get_connection_state(self) -> str:
+        """Get the current connection state as a string.
+
+        Returns:
+            Current connection state: 'disconnected', 'connecting', 'connected', 'error', or 'reconnecting'.
+        """
+        return self._connection_state.value
+
+    def get_connection_error(self) -> str | None:
+        """Get the last connection error message.
+
+        Returns:
+            Last error message or None if no error occurred.
+        """
+        return self._connection_error
+
+    def get_connection_metrics(self) -> dict:
+        """Get connection health metrics.
+
+        Returns:
+            Dictionary containing connection metrics:
+            - commands_sent: Number of commands sent
+            - commands_failed: Number of commands that failed
+            - notifications_received: Number of notifications received
+            - last_command_time: Timestamp of last command
+        """
+        return self._connection_metrics.copy()
+
     def register_notification_callback(
         self, notification_type: str, callback: Callable[[NotificationObject], None]
     ) -> None:
@@ -148,3 +237,201 @@ class _BaseNetworkHDClient(ABC):
             callback: The callback function to remove.
         """
         self.notification_handler.unregister_callback(notification_type, callback)
+
+    # ============================================================================
+    # PUBLIC METHODS - Connection Management
+    # ============================================================================
+
+    async def reconnect(self, max_attempts: int = 3, delay: float = 1.0) -> None:
+        """Attempt to reconnect to the device with exponential backoff.
+
+        Args:
+            max_attempts: Maximum number of reconnection attempts.
+            delay: Initial delay between attempts in seconds.
+
+        Raises:
+            ConnectionError: If reconnection fails after max attempts.
+        """
+        if self._connection_state == _ConnectionState.CONNECTING:
+            self.logger.warning("Already attempting to connect")
+            return
+
+        for attempt in range(max_attempts):
+            try:
+                self.logger.info(f"Reconnection attempt {attempt + 1}/{max_attempts}")
+                self._set_connection_state("reconnecting")
+
+                # Wait before retry (exponential backoff)
+                if attempt > 0:
+                    wait_time = delay * (2 ** (attempt - 1))
+                    self.logger.info(f"Waiting {wait_time}s before retry")
+                    await asyncio.sleep(wait_time)
+
+                await self.connect()
+                self.logger.info("Reconnection successful")
+                return
+
+            except Exception as e:
+                error_msg = f"Reconnection attempt {attempt + 1} failed: {e}"
+                self._set_connection_state("error", error_msg)
+                self.logger.warning(error_msg)
+
+                if attempt == max_attempts - 1:
+                    raise ConnectionError(f"Failed to reconnect after {max_attempts} attempts: {e}") from e
+
+    # ============================================================================
+    # PROTECTED METHODS - Command Handling
+    # ============================================================================
+
+    async def _send_command_generic(
+        self,
+        command: str,
+        send_func: Callable[[str], None],
+        receive_func: Callable[[], str | None],  # noqa: ARG002
+        response_timeout: float | None = None,
+    ) -> str:
+        """Generic command sending with response handling.
+
+        Args:
+            command: The command string to send.
+            send_func: Protocol-specific function to send the command.
+            receive_func: Protocol-specific function to receive response.
+            response_timeout: Maximum time to wait for response.
+
+        Returns:
+            The response string from the device.
+
+        Raises:
+            ConnectionError: If not connected.
+            TimeoutError: If response times out.
+        """
+        if response_timeout is None:
+            response_timeout = 10.0
+
+        async with self._command_lock:
+            command_id = str(self._command_id_counter)
+            self._command_id_counter += 1
+            response_queue: asyncio.Queue[str] = asyncio.Queue()
+
+            try:
+                self._pending_commands[command_id] = response_queue
+                send_func(command)
+                self._record_command_sent()
+
+                response = await asyncio.wait_for(response_queue.get(), timeout=response_timeout)
+                return response
+            except Exception:  # noqa: B904
+                self._record_command_failed()
+                raise
+            finally:
+                self._pending_commands.pop(command_id, None)
+
+    def _parse_response(self, response: str) -> str:
+        """Generic response parsing for NetworkHD devices.
+
+        Args:
+            response: The raw response string from the device.
+
+        Returns:
+            The parsed response string.
+
+        Raises:
+            CommandError: If the response indicates an error.
+        """
+        from ..exceptions import CommandError
+
+        # Remove welcome message and strip whitespace
+        response = response.replace("Welcome to NetworkHD", "").strip()
+
+        # Check for error responses
+        if response.startswith("ERROR"):
+            raise CommandError(f"Command error: {response}")
+
+        return response
+
+    # ============================================================================
+    # PROTECTED METHODS - Metrics and State Management
+    # ============================================================================
+
+    def _record_command_sent(self) -> None:
+        """Record that a command was sent."""
+        import time
+
+        self._connection_metrics["commands_sent"] += 1
+        self._connection_metrics["last_command_time"] = time.time()
+
+    def _record_command_failed(self) -> None:
+        """Record that a command failed."""
+        self._connection_metrics["commands_failed"] += 1
+
+    def _record_notification_received(self) -> None:
+        """Record that a notification was received."""
+        self._connection_metrics["notifications_received"] += 1
+
+    def _set_connection_state(self, state: str, error: str | None = None) -> None:
+        """Update connection state and error information.
+
+        Args:
+            state: New connection state.
+            error: Optional error message.
+        """
+        old_state = self._connection_state
+        self._connection_state = state
+        self._connection_error = error
+
+        if state != old_state:
+            self.logger.info(f"Connection state changed: {old_state.value} -> {state.value}")
+            if error:
+                self.logger.error(f"Connection error: {error}")
+
+        # Update circuit breaker state
+        if state == "error":
+            self._record_failure()
+        elif state == "connected":
+            self._reset_circuit()
+
+    # ============================================================================
+    # PROTECTED METHODS - Circuit Breaker Logic
+    # ============================================================================
+
+    def _record_failure(self) -> None:
+        """Record a connection failure for circuit breaker logic."""
+        import time
+
+        current_time = time.time()
+
+        self._failure_count += 1
+        self._last_failure_time = current_time
+
+        # Open circuit after 3 consecutive failures
+        if self._failure_count >= 3:
+            self._circuit_open = True
+            self._circuit_open_time = current_time
+            self.logger.warning("Circuit breaker opened due to repeated failures")
+
+    def _reset_circuit(self) -> None:
+        """Reset circuit breaker after successful connection."""
+        self._failure_count = 0
+        self._circuit_open = False
+        self._circuit_open_time = None
+        self.logger.info("Circuit breaker reset after successful connection")
+
+    def _is_circuit_open(self) -> bool:
+        """Check if circuit breaker is open.
+
+        Returns:
+            True if circuit breaker is open, False otherwise.
+        """
+        if not self._circuit_open:
+            return False
+
+        # Auto-close circuit after 30 seconds
+        import time
+
+        if self._circuit_open_time and (time.time() - self._circuit_open_time) > 30:
+            self.logger.info("Circuit breaker auto-closing after timeout")
+            self._circuit_open = False
+            self._failure_count = 0
+            return False
+
+        return True

@@ -24,6 +24,7 @@ from wyrestorm_networkhd import NetworkHDClientSSH, NHDAPI
 # Create client with SSH connection
 client = NetworkHDClientSSH(
     host="192.168.1.100",
+    port=22,
     username="wyrestorm",
     password="networkhd",
     ssh_host_key_policy="warn"
@@ -119,7 +120,7 @@ decisions.
 
 SSH Client:
 
-- **Production Environments**: Use `"reject"` or `"warn"` policies (warn is default)
+- **Production Environments**: Use `"reject"` or `"warn"` policies
 - **Development/Testing**: Use `"auto_add"` policy
 - **Controlled Networks**: `"auto_add"` may be acceptable if network security is assured Logging:
 - **Monitor Logs**: Always monitor logs for security warnings when using permissive policies
@@ -131,7 +132,13 @@ The client includes built-in support for real-time device notifications:
 ```python
 from wyrestorm_networkhd import NetworkHDClientSSH
 
-client = NetworkHDClientSSH(host="192.168.1.100", username="admin", password="secret", ssh_host_key_policy="warn")
+client = NetworkHDClientSSH(
+    host="192.168.1.100",
+    port=22,
+    username="admin",
+    password="secret",
+    ssh_host_key_policy="warn"
+)
 
 # Register notification callbacks
 def on_device_status(notification):
