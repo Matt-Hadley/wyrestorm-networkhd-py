@@ -1,6 +1,6 @@
 from unittest.mock import Mock
 
-from wyrestorm_networkhd import NetworkHDClient
+from wyrestorm_networkhd import NetworkHDClientSSH
 from wyrestorm_networkhd.commands import NHDAPI
 
 
@@ -8,9 +8,9 @@ class TestNHDAPI:
     """Unit tests for NHDAPI wrapper class."""
 
     def test_nhdapi_initialization_with_client(self):
-        """Test NHDAPI initialization with NetworkHDClient."""
+        """Test NHDAPI initialization with NetworkHDClientSSH."""
         # Arrange
-        mock_client = Mock(spec=NetworkHDClient)
+        mock_client = Mock(spec=NetworkHDClientSSH)
 
         # Act
         api = NHDAPI(mock_client)
@@ -45,7 +45,7 @@ class TestNHDAPI:
     def test_nhdapi_command_group_types(self):
         """Test that command groups are of correct types."""
         # Arrange
-        mock_client = Mock(spec=NetworkHDClient)
+        mock_client = Mock(spec=NetworkHDClientSSH)
 
         # Act
         api = NHDAPI(mock_client)
@@ -78,8 +78,8 @@ class TestNHDAPI:
     def test_nhdapi_multiple_instances_independent(self):
         """Test that multiple NHDAPI instances are independent."""
         # Arrange
-        mock_client1 = Mock(spec=NetworkHDClient)
-        mock_client2 = Mock(spec=NetworkHDClient)
+        mock_client1 = Mock(spec=NetworkHDClientSSH)
+        mock_client2 = Mock(spec=NetworkHDClientSSH)
 
         # Act
         api1 = NHDAPI(mock_client1)
@@ -94,7 +94,7 @@ class TestNHDAPI:
     def test_nhdapi_command_groups_have_methods(self):
         """Test that command groups have expected methods available."""
         # Arrange
-        mock_client = Mock(spec=NetworkHDClient)
+        mock_client = Mock(spec=NetworkHDClientSSH)
 
         # Act
         api = NHDAPI(mock_client)

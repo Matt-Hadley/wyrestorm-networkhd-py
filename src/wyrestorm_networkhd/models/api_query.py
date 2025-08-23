@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from ..exceptions import DeviceNotFoundError
+
 # =============================================================================
 # Helper Functions for Common Parsing Patterns
 # =============================================================================
@@ -268,7 +270,6 @@ class EndpointAliasHostname:
             Response example: NHD-400-TX-E4CE02104E55's alias is source1
             Error format: "<device_name> does not exist."
         """
-        from ..core.exceptions import DeviceNotFoundError
 
         # Check for "does not exist" error
         if " does not exist." in response:

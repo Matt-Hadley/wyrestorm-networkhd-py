@@ -1,6 +1,9 @@
-"""WyreStorm NetworkHD API Client
+"""Wyrestorm NetworkHD Python Client Library.
 
-A Python client library for interacting with WyreStorm NetworkHD API operations.
+A Python client library for WyreStorm NetworkHD devices, providing
+a high-level interface for device control and monitoring.
+
+For usage examples, see README.md and example.py files.
 """
 
 # Version automatically managed by setuptools-scm
@@ -12,12 +15,10 @@ except ImportError:
 
 # Main exports
 from .commands import NHDAPI
-from .core.client import ConnectionType, HostKeyPolicy, NetworkHDClient
+from .core.client_ssh import NetworkHDClientSSH
 
 __all__ = [
-    "NetworkHDClient",
-    "HostKeyPolicy",
-    "ConnectionType",
+    "NetworkHDClientSSH",
     "NHDAPI",
     "__version__",
 ]

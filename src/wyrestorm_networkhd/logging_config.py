@@ -1,4 +1,24 @@
-"""Logging configuration for the wyrestorm_networkhd package."""
+"""NetworkHD API client logging configuration.
+
+This module provides logging configuration for the NetworkHD API client.
+Logging is automatically configured when the client is used, but can be customized
+for different environments and requirements.
+
+Features:
+- Automatic logging setup with sensible defaults
+- Configurable log levels and formats
+- File and console logging support
+- Environment variable configuration
+- Structured logging for better debugging
+
+Default behavior:
+- Log level: INFO
+- Output: Console
+- Format: Standard Python logging format
+- Automatic setup when client is imported
+
+For usage examples, see README.md and example.py files.
+"""
 
 import logging
 import sys

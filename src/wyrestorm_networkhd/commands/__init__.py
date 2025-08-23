@@ -1,12 +1,23 @@
-"""Convenience wrapper for all command groups."""
+"""Convenience wrapper for all command groups.
 
-from ..core.client import NetworkHDClient
+This module provides the NHDAPI class that organizes all NetworkHD API commands
+into logical groups for easy access.
+"""
+
+from ..core.client_ssh import NetworkHDClientSSH
 
 
 class NHDAPI:
-    """Typed wrapper for all NHD command groups."""
+    """Typed wrapper for all NHD command groups.
 
-    def __init__(self, client: NetworkHDClient):
+    Provides organized access to all NetworkHD API commands, grouped by functionality.
+    Each command group contains related commands for a specific domain.
+
+    Args:
+        client: NetworkHDClientSSH instance for device communication
+    """
+
+    def __init__(self, client: NetworkHDClientSSH):
         # Import only when needed to avoid circular imports and reduce startup time
         from .api_endpoint import APIEndpointCommands
         from .api_notifications import APINotificationsCommands
@@ -20,14 +31,17 @@ class NHDAPI:
         from .video_stream_text_overlay import VideoStreamTextOverlayCommands
         from .video_wall import VideoWallCommands
 
-        self.reboot_reset = RebootResetCommands(client)
-        self.media_stream_matrix_switch = MediaStreamMatrixSwitchCommands(client)
-        self.device_port_switch = DevicePortSwitchCommands(client)
-        self.connected_device_control = ConnectedDeviceControlCommands(client)
-        self.audio_output = AudioOutputCommands(client)
-        self.video_wall = VideoWallCommands(client)
-        self.multiview = MultiviewCommands(client)
+        self.client = client
+
+        # Initialize all command groups
+        self.api_endpoint = APIEndpointCommands(client)
         self.api_notifications = APINotificationsCommands(client)
         self.api_query = APIQueryCommands(client)
+        self.audio_output = AudioOutputCommands(client)
+        self.connected_device_control = ConnectedDeviceControlCommands(client)
+        self.device_port_switch = DevicePortSwitchCommands(client)
+        self.media_stream_matrix_switch = MediaStreamMatrixSwitchCommands(client)
+        self.multiview = MultiviewCommands(client)
+        self.reboot_reset = RebootResetCommands(client)
         self.video_stream_text_overlay = VideoStreamTextOverlayCommands(client)
-        self.api_endpoint = APIEndpointCommands(client)
+        self.video_wall = VideoWallCommands(client)

@@ -340,6 +340,51 @@ class EndpointVideoInputStatusNotification:
 class NotificationParser:
     """Utility class to parse any NetworkHD API notification"""
 
+    # Static mapping of notification prefixes to type info
+    _NOTIFICATION_MAPPINGS = {
+        "notify endpoint": {
+            "type": "endpoint",
+            "class": EndpointOnlineStatusNotification,
+        },
+        "notify cecinfo": {
+            "type": "cec",
+            "class": EndpointCECDataNotification,
+        },
+        "notify irinfo": {
+            "type": "infrared",
+            "class": EndpointInfraredDataNotification,
+        },
+        "notify serialinfo": {
+            "type": "rs232",
+            "class": EndpointRS232DataNotification,
+        },
+        "notify video": {
+            "type": "video_input",
+            "class": EndpointVideoInputStatusNotification,
+        },
+    }
+
+    @staticmethod
+    def get_notification_type(notification: str) -> str:
+        """Extract the notification type from a notification string.
+
+        Args:
+            notification: The notification string to analyze
+
+        Returns:
+            The notification type string used for callback registration
+
+        Raises:
+            ValueError: If notification type is unknown
+        """
+        notification = notification.strip()
+
+        for prefix, info in NotificationParser._NOTIFICATION_MAPPINGS.items():
+            if notification.startswith(prefix):
+                return info["type"]
+
+        raise ValueError(f"Unknown notification type: {notification}")
+
     @staticmethod
     def parse_notification(
         notification: str,
@@ -363,15 +408,8 @@ class NotificationParser:
         """
         notification = notification.strip()
 
-        if notification.startswith("notify endpoint"):
-            return EndpointOnlineStatusNotification.parse(notification)
-        elif notification.startswith("notify cecinfo"):
-            return EndpointCECDataNotification.parse(notification)
-        elif notification.startswith("notify irinfo"):
-            return EndpointInfraredDataNotification.parse(notification)
-        elif notification.startswith("notify serialinfo"):
-            return EndpointRS232DataNotification.parse(notification)
-        elif notification.startswith("notify video"):
-            return EndpointVideoInputStatusNotification.parse(notification)
-        else:
-            raise ValueError(f"Unknown notification type: {notification}")
+        for prefix, info in NotificationParser._NOTIFICATION_MAPPINGS.items():
+            if notification.startswith(prefix):
+                return info["class"].parse(notification)
+
+        raise ValueError(f"Unknown notification type: {notification}")

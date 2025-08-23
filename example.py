@@ -16,21 +16,19 @@ For development workflow: make dev-workflow
 
 import asyncio
 
-from wyrestorm_networkhd import NHDAPI, ConnectionType, HostKeyPolicy, NetworkHDClient
+from wyrestorm_networkhd import NHDAPI, NetworkHDClientSSH
 
 
 async def main():
     """Example usage of the NetworkHD API client"""
 
-    # Create client with SSH connection (most common)
-    client = NetworkHDClient(
-        connection_type=ConnectionType.SSH,
+    # Create client with SSH connection
+    client = NetworkHDClientSSH(
         host="192.168.1.100",  # Replace with your NHD-CTL IP address
-        port=10022,
         username="wyrestorm",
         password="networkhd",
         timeout=10.0,
-        ssh_host_key_policy=HostKeyPolicy.WARN,  # Change to HostKeyPolicy.AUTO_ADD to auto-accept unknown keys
+        ssh_host_key_policy="warn",  # Change to "auto_add" to auto-accept unknown keys
     )
 
     try:
@@ -128,6 +126,22 @@ async def main():
             # Enable text overlay
             response = await api.video_stream_text_overlay.config_set_device_osd("on", "source1")
             print(f"Text overlay enable: {response}")
+
+            # Example 10: Real-time Notifications
+            print("\n=== Real-time Notifications ===")
+
+            # Register notification callbacks
+            def on_device_status(notification):
+                print(f"Device {notification.device} is {'online' if notification.online else 'offline'}")
+
+            def on_cec_data(notification):
+                print(f"CEC data from {notification.device}: {notification.data}")
+
+            # Register callbacks for different notification types
+            client.register_notification_callback("endpoint", on_device_status)
+            client.register_notification_callback("cec", on_cec_data)
+
+            print("Notification callbacks registered - you'll see real-time updates while connected")
 
             print("\n=== All commands completed successfully! ===")
 

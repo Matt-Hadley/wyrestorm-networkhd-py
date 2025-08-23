@@ -6,8 +6,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-A Python client library for interacting with WyreStorm NetworkHD API operations. Supports all major command categories
-including matrix switching, device control, video walls, multiview, and more.
+A Python client library for WyreStorm NetworkHD devices, providing a high-level interface for device control and
+monitoring. Supports all major command categories including matrix switching, device control, video walls, multiview,
+and more.
 
 ## Installation
 
@@ -18,15 +19,14 @@ pip install wyrestorm-networkhd
 ## Quick Start
 
 ```python
-from wyrestorm_networkhd import NetworkHDClient, ConnectionType, NHDAPI
+from wyrestorm_networkhd import NetworkHDClientSSH, NHDAPI
 
 # Create client with SSH connection
-client = NetworkHDClient(
-    connection_type=ConnectionType.SSH,
+client = NetworkHDClientSSH(
     host="192.168.1.100",
-    port=10022,
     username="wyrestorm",
-    password="networkhd"
+    password="networkhd",
+    ssh_host_key_policy="warn"
 )
 
 # Use with context manager
@@ -44,11 +44,11 @@ async with client:
 
 - **Strongly Typed**: Full type hints and data models for all API responses
 - **Async/Await Support**: Built for modern Python async applications
-- **Multiple Connection Types**: SSH connections supported, but extensible for other connection types in the future
-  (RS232, Telnet) if required.
+- **SSH Connection**: Secure SSH connections with configurable host key policies
 - **Comprehensive API Coverage**: All NetworkHD API commands supported
 - **Error Handling**: Robust error handling with custom exception types
 - **Context Manager Support**: Clean resource management
+- **Real-time Notifications**: Built-in notification handling for device status updates
 
 ## API Categories
 
@@ -112,67 +112,42 @@ python your_script.py
 
 ## Security Configuration
 
-The client supports configurable SSH host key verification policies to balance security with usability in different
-deployment scenarios.
-
-### Host Key Verification Policies
-
-- **`HostKeyPolicy.WARN`** (default): Warns about unknown hosts but continues
-  - Good balance between security and usability
-  - Provides visibility into security issues
-  - Suitable for production with monitoring
-
-- **`HostKeyPolicy.REJECT`**: Rejects connections to unknown hosts
-  - Most secure option for production environments
-  - Requires known host keys to be pre-configured
-  - Best for environments with stable, known devices
-
-- **`HostKeyPolicy.AUTO_ADD`**: Automatically trusts unknown host keys
-  - Good for development and testing environments
-  - ⚠️ **Security Warning**: Vulnerable to man-in-the-middle attacks
-  - Use only in controlled, trusted environments
-
-- **`HostKeyPolicy.ASK`**: Prompts user for confirmation
-  - Interactive mode for development/testing
-  - Requires user interaction in terminal
-  - Good for controlled testing environments
-
-### Usage Examples
-
-```python
-from wyrestorm_networkhd import NetworkHDClient, HostKeyPolicy, ConnectionType
-
-# Default behavior (WARN policy)
-client = NetworkHDClient(
-    connection_type=ConnectionType.SSH,
-    host="192.168.1.100",
-    password="secret"
-)
-
-# Secure production setup
-client = NetworkHDClient(
-    connection_type=ConnectionType.SSH,
-    host="192.168.1.100",
-    password="secret",
-    ssh_host_key_policy=HostKeyPolicy.REJECT
-)
-
-# Auto-add mode for development/testing
-client = NetworkHDClient(
-    connection_type=ConnectionType.SSH,
-    host="192.168.1.100",
-    password="secret",
-    ssh_host_key_policy=HostKeyPolicy.AUTO_ADD
-)
-```
+The SSH client requires explicit SSH host key verification policy selection to ensure users make conscious security
+decisions.
 
 ### Security Recommendations
 
-- **Production Environments**: Use `REJECT` or `WARN` policies (WARN is default)
-- **Development/Testing**: Use `AUTO_ADD` or `ASK` policies
-- **Controlled Networks**: `AUTO_ADD` may be acceptable if network security is assured
+SSH Client:
+
+- **Production Environments**: Use `"reject"` or `"warn"` policies (warn is default)
+- **Development/Testing**: Use `"auto_add"` policy
+- **Controlled Networks**: `"auto_add"` may be acceptable if network security is assured Logging:
 - **Monitor Logs**: Always monitor logs for security warnings when using permissive policies
-- **Default Behavior**: New clients now use WARN policy by default for better security
+
+## Real-time Notifications
+
+The client includes built-in support for real-time device notifications:
+
+```python
+from wyrestorm_networkhd import NetworkHDClientSSH
+
+client = NetworkHDClientSSH(host="192.168.1.100", username="admin", password="secret", ssh_host_key_policy="warn")
+
+# Register notification callbacks
+def on_device_status(notification):
+    print(f"Device {notification.device} is {'online' if notification.online else 'offline'}")
+
+def on_cec_data(notification):
+    print(f"CEC data from {notification.device}: {notification.data}")
+
+# Register callbacks for different notification types
+client.register_notification_callback("endpoint", on_device_status)
+client.register_notification_callback("cec", on_cec_data)
+
+# Connect and start receiving notifications
+await client.connect()
+# Notifications will be automatically handled while connected
+```
 
 ## 🧪 Testing
 

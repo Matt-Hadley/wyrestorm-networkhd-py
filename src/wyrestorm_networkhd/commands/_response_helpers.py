@@ -1,9 +1,14 @@
-"""Utilities for command response validation."""
+"""Utilities for command response validation and parsing.
+
+This module provides helper functions for validating and parsing responses
+from NetworkHD API commands. These utilities ensure consistent error handling
+and response validation across all command implementations.
+"""
 
 import json
 from typing import Any
 
-from ..core.exceptions import CommandError, ResponseError
+from ..exceptions import CommandError, ResponseError
 
 
 def require_command_mirror(response: str, expected: str) -> bool:

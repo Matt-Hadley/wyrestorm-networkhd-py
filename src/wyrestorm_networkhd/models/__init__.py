@@ -1,6 +1,6 @@
 """NetworkHD API data models.
 
-Import directly from submodules:
-- .api_notifications for notification models
-- .api_query for query response models
+This module contains Pydantic models for NetworkHD API responses and notifications.
+These models provide type safety and automatic validation for all API interactions.
+
 """

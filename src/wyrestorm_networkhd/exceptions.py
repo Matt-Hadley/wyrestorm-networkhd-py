@@ -1,3 +1,10 @@
+"""NetworkHD API client exceptions.
+
+This module defines custom exception classes for the NetworkHD API client.
+These exceptions provide detailed error information and help with debugging.
+"""
+
+
 class NetworkHDError(Exception):
     """Base exception for NetworkHD API errors"""
 
