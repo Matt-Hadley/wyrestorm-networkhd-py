@@ -318,8 +318,21 @@ class _BaseNetworkHDClient(ABC):
                 send_func(command)
                 self._record_command_sent()
 
-                response = await asyncio.wait_for(response_queue.get(), timeout=response_timeout)
-                return response
+                # Collect all response lines until timeout
+                response_lines = []
+                start_time = asyncio.get_event_loop().time()
+
+                while asyncio.get_event_loop().time() - start_time < response_timeout:
+                    try:
+                        # Wait for next response line
+                        line = await asyncio.wait_for(response_queue.get(), timeout=1.0)
+                        response_lines.append(line)
+                    except TimeoutError:
+                        # No more lines coming
+                        break
+
+                # Join all response lines
+                return "\n".join(response_lines) if response_lines else ""
             except Exception:  # noqa: B904
                 self._record_command_failed()
                 raise

@@ -296,6 +296,9 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
                         if not line:
                             continue
 
+                        # Debug: log what we're receiving
+                        self.logger.debug(f"Message dispatcher received line: {repr(line)}")
+
                         # Check if this is a notification
                         if line.startswith("notify "):
                             # This is a notification - handle it
@@ -307,7 +310,7 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
                             await self._handle_command_response(line)
 
                 # Small delay to prevent busy waiting
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.1)
 
             except Exception as e:
                 if self._dispatcher_enabled:
@@ -331,6 +334,8 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
         # Send to the first pending command (FIFO order)
         command_id = next(iter(self._pending_commands))
         queue = self._pending_commands[command_id]
+
+        self.logger.debug(f"Routing response '{response_line}' to command {command_id}")
 
         try:
             queue.put_nowait(response_line)
