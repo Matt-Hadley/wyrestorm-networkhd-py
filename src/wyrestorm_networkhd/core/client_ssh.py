@@ -7,7 +7,7 @@ import paramiko
 
 from ..exceptions import AuthenticationError, ConnectionError
 from ..logging_config import get_logger
-from ._client import _BaseNetworkHDClient
+from ._client import _BaseNetworkHDClient, _ConnectionState
 
 # Type alias for SSH host key policies
 HostKeyPolicy = str  # 'auto_add', 'reject', or 'warn'
@@ -201,7 +201,7 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
             and self.client.get_transport().is_active()
         )
 
-        if not connected and self._connection_state == "connected":
+        if not connected and self._connection_state == _ConnectionState.CONNECTED:
             self._set_connection_state("disconnected")
 
         return connected

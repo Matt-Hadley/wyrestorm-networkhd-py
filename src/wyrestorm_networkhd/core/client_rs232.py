@@ -7,7 +7,7 @@ import async_pyserial
 
 from ..exceptions import ConnectionError
 from ..logging_config import get_logger
-from ._client import _BaseNetworkHDClient
+from ._client import _BaseNetworkHDClient, _ConnectionState
 
 
 class NetworkHDClientRS232(_BaseNetworkHDClient):
@@ -155,7 +155,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
         """
         connected = self.serial is not None and self.serial.is_open
 
-        if not connected and self._connection_state == "connected":
+        if not connected and self._connection_state == _ConnectionState.CONNECTED:
             self._set_connection_state("disconnected")
 
         return connected
