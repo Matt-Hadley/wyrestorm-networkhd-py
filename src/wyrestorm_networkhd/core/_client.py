@@ -2,28 +2,30 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any
 
 from ..logging_config import get_logger
-from ..models.api_notifications import NotificationParser
+from ..models.api_notifications import (
+    NotificationObject,
+    NotificationParser,
+)
 
 
 class _NotificationHandler:
     """Handles parsing and dispatching of NetworkHD API notifications."""
 
     def __init__(self):
-        self._callbacks: dict[str, list[Callable[[Any], None]]] = {}
+        self._callbacks: dict[str, list[Callable[[NotificationObject], None]]] = {}
         self._parser = NotificationParser()
         self.logger = get_logger(f"{__name__}._NotificationHandler")
 
-    def register_callback(self, notification_type: str, callback: Callable[[Any], None]) -> None:
+    def register_callback(self, notification_type: str, callback: Callable[[NotificationObject], None]) -> None:
         """Register a callback for a specific notification type."""
         if notification_type not in self._callbacks:
             self._callbacks[notification_type] = []
         self._callbacks[notification_type].append(callback)
         self.logger.debug(f"Registered callback for {notification_type} notifications")
 
-    def unregister_callback(self, notification_type: str, callback: Callable[[Any], None]) -> None:
+    def unregister_callback(self, notification_type: str, callback: Callable[[NotificationObject], None]) -> None:
         """Unregister a specific callback for a notification type."""
         if notification_type in self._callbacks:
             try:
@@ -115,7 +117,9 @@ class _BaseNetworkHDClient(ABC):
         """
         pass
 
-    def register_notification_callback(self, notification_type: str, callback: Callable[[Any], None]) -> None:
+    def register_notification_callback(
+        self, notification_type: str, callback: Callable[[NotificationObject], None]
+    ) -> None:
         """Register a callback function for specific notification types.
 
         Args:
@@ -134,7 +138,9 @@ class _BaseNetworkHDClient(ABC):
         """
         self.notification_handler.register_callback(notification_type, callback)
 
-    def unregister_notification_callback(self, notification_type: str, callback: Callable[[Any], None]) -> None:
+    def unregister_notification_callback(
+        self, notification_type: str, callback: Callable[[NotificationObject], None]
+    ) -> None:
         """Remove a previously registered notification callback.
 
         Args:
@@ -142,7 +148,3 @@ class _BaseNetworkHDClient(ABC):
             callback: The callback function to remove.
         """
         self.notification_handler.unregister_callback(notification_type, callback)
-
-
-# No need to import NetworkHDClientSSH here - it's a private base module
-__all__ = []

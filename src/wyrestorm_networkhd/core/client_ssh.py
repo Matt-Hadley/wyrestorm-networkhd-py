@@ -9,7 +9,7 @@ import paramiko
 
 from ..exceptions import CommandError, ConnectionError
 from ..logging_config import get_logger
-from ._client import _BaseNetworkHDClient
+from ._client import _BaseNetworkHDClient, _NotificationHandler
 
 
 class _HostKeyPolicy(Enum):
@@ -18,7 +18,6 @@ class _HostKeyPolicy(Enum):
     AUTO_ADD = "auto_add"  # paramiko.AutoAddPolicy()
     REJECT = "reject"  # paramiko.RejectPolicy()
     WARN = "warn"  # paramiko.WarningPolicy()
-    ASK = "ask"  # paramiko.AskPolicy()
 
 
 class _SSHConnection:
@@ -35,7 +34,7 @@ class _SSHConnection:
         password: str,
         timeout: float,
         host_key_policy: _HostKeyPolicy,
-        notification_handler,
+        notification_handler: _NotificationHandler,
     ):
         """Initialize an SSH connection instance.
 
@@ -68,7 +67,9 @@ class _SSHConnection:
         # Set up logger for this connection instance
         self.logger = get_logger(f"{__name__}._SSHConnection")
 
-    def _get_host_key_policy(self):
+    def _get_host_key_policy(
+        self,
+    ) -> paramiko.client.AutoAddPolicy | paramiko.client.RejectPolicy | paramiko.client.WarningPolicy:
         """Get the appropriate Paramiko host key policy."""
         policy_map = {
             _HostKeyPolicy.AUTO_ADD: paramiko.AutoAddPolicy(),

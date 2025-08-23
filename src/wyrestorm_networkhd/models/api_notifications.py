@@ -413,3 +413,13 @@ class NotificationParser:
                 return info["class"].parse(notification)
 
         raise ValueError(f"Unknown notification type: {notification}")
+
+
+# Type alias for all notification objects (defined after all classes)
+# Extract classes dynamically from the NotificationParser mappings
+def _get_notification_types():
+    """Get all notification types dynamically from the parser mappings."""
+    return tuple(info["class"] for info in NotificationParser._NOTIFICATION_MAPPINGS.values())
+
+
+NotificationObject = _get_notification_types()
