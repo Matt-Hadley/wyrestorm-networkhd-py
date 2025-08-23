@@ -337,6 +337,58 @@ class EndpointVideoInputStatusNotification:
         return cls(status=status, device=device, source_device=source_device)
 
 
+@dataclass
+class EndpointSinkPowerStatusNotification:
+    """Endpoint sink power status notification"""
+
+    status: Literal["lost", "found"]
+    device: str
+
+    @classmethod
+    def parse(cls, notification: str) -> "EndpointSinkPowerStatusNotification":
+        """Parse sink power status notification
+
+        Args:
+            notification: The notification string to parse
+
+        Returns:
+            EndpointSinkPowerStatusNotification: Parsed notification object
+
+        Raises:
+            ValueError: If notification format is invalid
+
+        Command applies to:
+            NHD-110-RX, NHD-100-RX, NHD-200-RX, NHD-210-RX, NHD-220-RX, NHD-250-RX
+            NHD-400-RX, NHD-500-RX
+            NHD-600-RX, NHD-600-TRX, NHD-600-TRXF, NHD-610-RX
+
+        Notes:
+            Sink power status notifications indicate when a device's power state changes
+            due to CEC, RS-232, or other power control commands.
+        """
+        """NetworkHDReferenceAPI
+        Notification structure:
+            notify sink [lost|found] <RX>
+
+        Notification example: RX has lost power
+            notify sink lost display1
+
+        Notification example 2: RX has regained power
+            notify sink found display1
+        """
+        parts = notification.strip().split()
+        if len(parts) != 4 or parts[0] != "notify" or parts[1] != "sink":
+            raise ValueError(f"Invalid sink power status notification format: {notification}")
+
+        status = parts[2]
+        device = parts[3]
+
+        if status not in ["lost", "found"]:
+            raise ValueError(f"Invalid sink power status: {status}")
+
+        return cls(status=status, device=device)
+
+
 class NotificationParser:
     """Utility class to parse any NetworkHD API notification"""
 
@@ -361,6 +413,10 @@ class NotificationParser:
         "notify video": {
             "type": "video_input",
             "class": EndpointVideoInputStatusNotification,
+        },
+        "notify sink": {
+            "type": "sink_power",
+            "class": EndpointSinkPowerStatusNotification,
         },
     }
 
@@ -394,6 +450,7 @@ class NotificationParser:
         | EndpointInfraredDataNotification
         | EndpointRS232DataNotification
         | EndpointVideoInputStatusNotification
+        | EndpointSinkPowerStatusNotification
     ):
         """Parse any NetworkHD API notification and return the appropriate notification object
 

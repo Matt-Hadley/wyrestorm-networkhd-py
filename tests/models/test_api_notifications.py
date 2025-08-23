@@ -5,6 +5,7 @@ from wyrestorm_networkhd.models.api_notifications import (
     EndpointInfraredDataNotification,
     EndpointOnlineStatusNotification,
     EndpointRS232DataNotification,
+    EndpointSinkPowerStatusNotification,
     EndpointVideoInputStatusNotification,
     NotificationParser,
 )
@@ -436,6 +437,74 @@ class TestEndpointVideoInputStatusNotification:
         assert result.source_device is None
 
 
+class TestEndpointSinkPowerStatusNotification:
+    """Unit tests for EndpointSinkPowerStatusNotification."""
+
+    # =============================================================================
+    # 12.2 Endpoint Notifications - Endpoint sink power status notification
+    # =============================================================================
+
+    def test_parse_sink_power_lost_success(self):
+        """Test parsing sink power lost notification."""
+        notification = "notify sink lost display1"
+        result = EndpointSinkPowerStatusNotification.parse(notification)
+
+        assert result.status == "lost"
+        assert result.device == "display1"
+
+    def test_parse_sink_power_found_success(self):
+        """Test parsing sink power found notification."""
+        notification = "notify sink found display1"
+        result = EndpointSinkPowerStatusNotification.parse(notification)
+
+        assert result.status == "found"
+        assert result.device == "display1"
+
+    def test_parse_with_whitespace(self):
+        """Test parsing with extra whitespace."""
+        notification = "  notify sink lost display1  "
+        result = EndpointSinkPowerStatusNotification.parse(notification)
+
+        assert result.status == "lost"
+        assert result.device == "display1"
+
+    def test_parse_invalid_parts_count_too_few(self):
+        """Test parsing with too few parts."""
+        notification = "notify sink lost"
+        with pytest.raises(ValueError, match="Invalid sink power status notification format"):
+            EndpointSinkPowerStatusNotification.parse(notification)
+
+    def test_parse_invalid_parts_count_too_many(self):
+        """Test parsing with too many parts."""
+        notification = "notify sink lost display1 extra"
+        with pytest.raises(ValueError, match="Invalid sink power status notification format"):
+            EndpointSinkPowerStatusNotification.parse(notification)
+
+    def test_parse_invalid_first_part(self):
+        """Test parsing with invalid first part."""
+        notification = "invalid sink lost display1"
+        with pytest.raises(ValueError, match="Invalid sink power status notification format"):
+            EndpointSinkPowerStatusNotification.parse(notification)
+
+    def test_parse_invalid_second_part(self):
+        """Test parsing with invalid second part."""
+        notification = "notify invalid lost display1"
+        with pytest.raises(ValueError, match="Invalid sink power status notification format"):
+            EndpointSinkPowerStatusNotification.parse(notification)
+
+    def test_parse_invalid_status(self):
+        """Test parsing with invalid sink power status."""
+        notification = "notify sink invalid display1"
+        with pytest.raises(ValueError, match="Invalid sink power status: invalid"):
+            EndpointSinkPowerStatusNotification.parse(notification)
+
+    def test_parse_empty_device_name(self):
+        """Test parsing with empty device name."""
+        notification = "notify sink lost "
+        with pytest.raises(ValueError, match="Invalid sink power status notification format"):
+            EndpointSinkPowerStatusNotification.parse(notification)
+
+
 class TestNotificationParser:
     """Unit tests for NotificationParser."""
 
@@ -490,6 +559,15 @@ class TestNotificationParser:
         assert result.status == "found"
         assert result.device == "display1"
         assert result.source_device == "source1"
+
+    def test_parse_sink_power_notification(self):
+        """Test parsing sink power notification."""
+        notification = "notify sink lost display1"
+        result = NotificationParser.parse_notification(notification)
+
+        assert isinstance(result, EndpointSinkPowerStatusNotification)
+        assert result.status == "lost"
+        assert result.device == "display1"
 
     def test_parse_with_whitespace(self):
         """Test parsing with whitespace around notification."""
