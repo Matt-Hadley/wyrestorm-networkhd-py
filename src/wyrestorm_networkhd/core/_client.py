@@ -213,7 +213,7 @@ class _BaseNetworkHDClient(ABC):
 
         Args:
             notification_type: Type of notification to listen for.
-                Available types: 'endpoint', 'cec', 'infrared', 'rs232', 'video_input'
+                Available types: 'endpoint', 'cecinfo', 'irinfo', 'serialinfo', 'video', 'sink'
             callback: Function to call when this notification type is received.
                 The callback will receive the parsed notification object as its argument.
 
