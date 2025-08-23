@@ -116,7 +116,6 @@ omit = [
     "*/tests/*",
     "*/__pycache__/*",
     "*/site-packages/*",
-    "example.py",
     "src/wyrestorm_networkhd/__init__.py",
     "src/wyrestorm_networkhd/client.py",
     "src/wyrestorm_networkhd/exceptions.py",

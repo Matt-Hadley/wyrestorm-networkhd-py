@@ -3,7 +3,7 @@
 A Python client library for WyreStorm NetworkHD devices, providing
 a high-level interface for device control and monitoring.
 
-For usage examples, see README.md and example.py files.
+For usage examples, see README.md.
 """
 
 # Version automatically managed by setuptools-scm
