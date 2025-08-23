@@ -7,7 +7,7 @@ import async_pyserial
 
 from ..exceptions import ConnectionError
 from ..logging_config import get_logger
-from ._client import _BaseNetworkHDClient, _ConnectionState
+from ._client import _BaseNetworkHDClient
 
 
 class NetworkHDClientRS232(_BaseNetworkHDClient):
@@ -46,7 +46,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
             **serial_kwargs: Additional serial port configuration options.
 
         Raises:
-            ValueError: If required parameters are missing or invalid.
+            ValueError: If any parameters are invalid.
         """
         super().__init__(
             circuit_breaker_timeout=circuit_breaker_timeout,
@@ -71,7 +71,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
         self.message_dispatcher_interval = message_dispatcher_interval
 
         # Serial connection objects
-        self.serial: async_pyserial.AsyncSerial | None = None
+        self.serial: async_pyserial.SerialPort | None = None
 
         # Message handling
         self._message_dispatcher_task: asyncio.Task | None = None
@@ -102,7 +102,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
             await super().connect()
 
             # Create async serial connection
-            self.serial = async_pyserial.AsyncSerial(
+            self.serial = async_pyserial.SerialPort(
                 port=self.port,
                 baudrate=self.baudrate,
                 timeout=self.timeout,
@@ -155,7 +155,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
         """
         connected = self.serial is not None and self.serial.is_open
 
-        if not connected and self._connection_state == _ConnectionState.CONNECTED:
+        if not connected and self._connection_state == "connected":
             self._set_connection_state("disconnected")
 
         return connected
