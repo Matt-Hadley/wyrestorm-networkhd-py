@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from wyrestorm_networkhd.commands.video_wall import VideoWallCommands
-from wyrestorm_networkhd.core.exceptions import CommandError
+from wyrestorm_networkhd.exceptions import CommandError
 
 
 class TestVideoWallCommands:
