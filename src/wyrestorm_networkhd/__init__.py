@@ -17,8 +17,20 @@ except ImportError:
 from .commands import NHDAPI
 from .core.client_ssh import NetworkHDClientSSH
 
+# RS232 client (optional - requires async-pyserial)
+try:
+    from .core.client_rs232 import NetworkHDClientRS232
+
+    _RS232_AVAILABLE = True
+except ImportError:
+    _RS232_AVAILABLE = False
+
 __all__ = [
     "NetworkHDClientSSH",
     "NHDAPI",
     "__version__",
 ]
+
+# Conditionally export RS232 client if available
+if _RS232_AVAILABLE:
+    __all__.append("NetworkHDClientRS232")

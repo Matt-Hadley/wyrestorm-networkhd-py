@@ -18,6 +18,8 @@ pip install wyrestorm-networkhd
 
 ## Quick Start
 
+### SSH Connection
+
 ```python
 from wyrestorm_networkhd import NetworkHDClientSSH, NHDAPI
 
@@ -29,23 +31,37 @@ client = NetworkHDClientSSH(
     password="networkhd",
     ssh_host_key_policy="warn"
 )
+```
+
+### RS232 Connection (Optional)
+
+```python
+from wyrestorm_networkhd import NetworkHDClientRS232, NHDAPI
+
+# Install RS232 support: pip install wyrestorm-networkhd[rs232]
+client = NetworkHDClientRS232(
+    port="/dev/ttyUSB0",  # Linux: /dev/ttyUSB0, Windows: COM1
+    baudrate=115200,
+    timeout=10.0
+)
+```
 
 # Use with context manager
-async with client:
-    # Create API wrapper
-    api = NHDAPI(client)
+
+async with client: # Create API wrapper api = NHDAPI(client)
 
     # Execute commands and get typed responses
     device_list = await api.api_query.get_devicelist()
     matrix_info = await api.api_query.matrix_get()
     await api.video_wall.scene_active("office", "splitmode")
-```
+
+````
 
 ## Features
 
 - **Strongly Typed**: Full type hints and data models for all API responses
 - **Async/Await Support**: Built for modern Python async applications
-- **SSH Connection**: Secure SSH connections with configurable host key policies
+- **Multiple Connection Types**: SSH and RS232 (optional) connections
 - **Comprehensive API Coverage**: All NetworkHD API commands supported
 - **Error Handling**: Robust error handling with custom exception types
 - **Context Manager Support**: Clean resource management
@@ -92,7 +108,7 @@ setup_logging(
     level="DEBUG",
     log_format="%(levelname)s - %(name)s - %(message)s"
 )
-```
+````
 
 ### Log Levels
 
@@ -111,10 +127,22 @@ export LOG_LEVEL=DEBUG
 python your_script.py
 ```
 
-## Security Configuration
+## Connection Types
+
+### SSH Connection
 
 The SSH client requires explicit SSH host key verification policy selection to ensure users make conscious security
 decisions.
+
+### RS232 Connection
+
+The RS232 client provides serial communication support as an optional extension. Install with:
+
+```bash
+pip install wyrestorm-networkhd[rs232]
+```
+
+**Note**: RS232 support requires the `async-pyserial` package and appropriate serial port permissions on your system.
 
 ### Security Recommendations
 

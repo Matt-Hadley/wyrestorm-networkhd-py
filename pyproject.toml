@@ -56,6 +56,10 @@ dev = [
     "setuptools-scm>=8.1.0",
 ]
 
+rs232 = [
+    "async-pyserial>=0.1.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py"
 Repository = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py.git"

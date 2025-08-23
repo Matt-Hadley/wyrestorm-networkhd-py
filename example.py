@@ -22,6 +22,7 @@ from wyrestorm_networkhd import NHDAPI, NetworkHDClientSSH
 async def main():
     """Example usage of the NetworkHD API client"""
 
+    # Example 1: SSH Connection
     # Create client with SSH connection
     client = NetworkHDClientSSH(
         host="192.168.1.100",  # Replace with your NHD-CTL IP address
@@ -31,6 +32,14 @@ async def main():
         ssh_host_key_policy="warn",  # Change to "auto_add" to auto-accept unknown keys
         timeout=10.0,
     )
+
+    # Example 2: RS232 Connection (uncomment to use)
+    # from wyrestorm_networkhd import NetworkHDClientRS232
+    # client = NetworkHDClientRS232(
+    #     port="/dev/ttyUSB0",  # Linux: /dev/ttyUSB0, Windows: COM1
+    #     baudrate=115200,
+    #     timeout=10.0
+    # )
 
     try:
         # Use async context manager for automatic connection handling
