@@ -8,7 +8,7 @@ from wyrestorm_networkhd.commands._response_helpers import (
     require_contains,
     require_success_indicator,
 )
-from wyrestorm_networkhd.core.exceptions import CommandError, ResponseError
+from wyrestorm_networkhd.exceptions import CommandError, ResponseError
 
 # =============================================================================
 # require_command_mirror Tests

@@ -68,8 +68,8 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(GREEN)🚀 Quick Start:$(NC)"
 	@echo "  install          - Complete development environment setup"
-	@echo "  dev-workflow     - Format → Lint → Test (daily development)"
-	@echo "  health-check     - Comprehensive project validation"
+	@echo "  dev-workflow     - Format → Lint → Fast Tests (daily development)"
+	@echo "  health-check     - Comprehensive project validation (all tests)"
 	@echo ""
 	@echo "$(YELLOW)📦 Development Setup:$(NC)"
 	@echo "  install          - Complete development environment setup"
@@ -81,7 +81,10 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(YELLOW)🧪 Testing:$(NC)"
 	@echo "  test             - Run all tests"
-	@echo "  test-cov         - Run tests with coverage report"
+	@echo "  test-fast        - Run only fast unit tests (daily development)"
+	@echo "  test-integration - Run integration tests only"
+	@echo "  test-performance - Run performance tests only"
+	@echo "  test-cov         - Run all tests with coverage report"
 	@echo ""
 	@echo "$(YELLOW)✨ Code Formatting:$(NC)"
 	@echo "  format           - Format all code and documentation"
@@ -125,8 +128,8 @@ install: validate-config create-venv check-versions install-deps setup-pre-commi
 	@echo "  2. Check health: make health-check"
 	@echo "  3. Start coding!"
 
-dev-workflow: format check test ## Complete development workflow (format, check, test)
-	@echo "$(GREEN)✓$(NC) Development workflow completed"
+dev-workflow: format check test-fast ## Complete development workflow (format, check, fast tests only)
+	@echo "$(GREEN)✓$(NC) Development workflow completed (fast tests only)"
 
 health-check: validate-config check-versions show-deps check-project-structure format-check test-cov check security-audit build ## Comprehensive project validation
 	@echo ""
@@ -165,12 +168,27 @@ setup-pre-commit: install-deps ## Install pre-commit hooks
 # Testing
 # =============================================================================
 test: ## Run all tests
-	$(ECHO) "$(YELLOW)Running tests...$(NC)"
+	$(ECHO) "$(YELLOW)Running all tests...$(NC)"
 	$(Q)$(PYTEST)
-	@echo "$(GREEN)✓$(NC) Tests completed"
+	@echo "$(GREEN)✓$(NC) All tests completed"
 
-test-cov: ## Run tests with coverage
-	$(ECHO) "$(YELLOW)Running tests with coverage...$(NC)"
+test-fast: ## Run only fast unit tests (exclude integration and performance tests)
+	$(ECHO) "$(YELLOW)Running fast unit tests only...$(NC)"
+	$(Q)$(PYTEST) -m "unit" --tb=short
+	@echo "$(GREEN)✓$(NC) Fast tests completed"
+
+test-integration: ## Run integration tests only (exclude performance tests)
+	$(ECHO) "$(YELLOW)Running integration tests only...$(NC)"
+	$(Q)$(PYTEST) -m "integration and not performance" --tb=short
+	@echo "$(GREEN)✓$(NC) Integration tests completed"
+
+test-performance: ## Run performance tests only
+	$(ECHO) "$(YELLOW)Running performance tests only...$(NC)"
+	$(Q)$(PYTEST) -m "performance" --tb=short
+	@echo "$(GREEN)✓$(NC) Performance tests completed"
+
+test-cov: ## Run all tests with coverage
+	$(ECHO) "$(YELLOW)Running all tests with coverage...$(NC)"
 	$(Q)$(PYTEST) --cov=src/$(PROJECT_NAME) --cov-report=term-missing --cov-report=html --cov-report=xml
 	@echo "$(GREEN)✓$(NC) Coverage report generated"
 

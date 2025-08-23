@@ -1,4 +1,4 @@
-"""Test fixtures and utilities for core module testing."""
+"""Test fixtures and utilities for core module testing - Focused on behavior testing."""
 
 import asyncio
 from collections.abc import AsyncGenerator
@@ -17,7 +17,7 @@ def mock_logger():
 
 @pytest.fixture
 def mock_notification_parser():
-    """Mock notification parser."""
+    """Mock notification parser for behavior testing."""
     parser = Mock()
     parser.get_notification_type.return_value = "endpoint"
     parser.parse_notification.return_value = Mock(spec=NotificationObject)
@@ -25,8 +25,8 @@ def mock_notification_parser():
 
 
 @pytest.fixture
-def mock_paramiko_ssh_client():
-    """Mock paramiko SSH client."""
+def mock_ssh_connection():
+    """Simple mock SSH connection for behavior testing."""
     client = Mock()
     transport = Mock()
     transport.is_active.return_value = True
@@ -49,8 +49,8 @@ def mock_paramiko_ssh_client():
 
 
 @pytest.fixture
-def mock_async_serial():
-    """Mock async serial connection."""
+def mock_serial_connection():
+    """Simple mock serial connection for behavior testing."""
     serial = Mock()
     serial.is_open = True
     serial.in_waiting = 0
@@ -84,7 +84,7 @@ async def async_queue() -> AsyncGenerator[asyncio.Queue, None]:
 
 
 class MockNotificationHandler:
-    """Mock notification handler for testing."""
+    """Mock notification handler for behavior testing."""
 
     def __init__(self):
         self.callbacks = {}

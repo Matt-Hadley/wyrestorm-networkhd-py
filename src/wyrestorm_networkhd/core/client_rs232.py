@@ -71,7 +71,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
         self.message_dispatcher_interval = message_dispatcher_interval
 
         # Serial connection objects
-        self.serial: async_pyserial.AsyncSerial | None = None
+        self.serial: async_pyserial.SerialPort | None = None
 
         # Message handling
         self._message_dispatcher_task: asyncio.Task | None = None
@@ -102,7 +102,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
             await super().connect()
 
             # Create async serial connection
-            self.serial = async_pyserial.AsyncSerial(
+            self.serial = async_pyserial.SerialPort(
                 port=self.port,
                 baudrate=self.baudrate,
                 timeout=self.timeout,

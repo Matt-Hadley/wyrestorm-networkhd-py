@@ -55,6 +55,8 @@ dev = [
     "vulture>=2.1.4",
     "pyupgrade>=3.10.0",
     "setuptools-scm>=8.1.0",
+    "async-pyserial>=0.1.0",
+    "paramiko>=3.0.0",
 ]
 
 rs232 = ["async-pyserial>=0.1.0"]
@@ -145,7 +147,6 @@ module = "paramiko.*"
 ignore_missing_imports = true
 
 # Pytest configuration
-[tool.pytest]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
@@ -162,8 +163,10 @@ addopts = [
     "--tb=short",
 ]
 markers = [
-    "unit: marks tests as unit tests",
-    "benchmark: marks tests as performance benchmarks",
+    "unit: marks tests as unit tests (deselect with '-m \"not unit\"')",
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "performance: marks tests as performance tests (deselect with '-m \"not performance\"')",
+    "asyncio: marks tests as async tests",
 ]
 
 # Ruff configuration - replaces Black, isort, and Flake8
