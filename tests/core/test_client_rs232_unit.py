@@ -199,10 +199,16 @@ class TestNetworkHDClientRS232Commands:
         self.client.serial = Mock()
         self.client.serial.is_open = True
 
-        # Mock timeout scenario
-        self.client.serial.in_waiting = 0
-
-        with pytest.raises(Exception):  # Should timeout
+        # Mock timeout scenario by patching _send_command_generic
+        with (
+            patch.object(
+                self.client,
+                "_send_command_generic",
+                new_callable=AsyncMock,
+                side_effect=TimeoutError("Command timeout"),
+            ),
+            pytest.raises(TimeoutError),  # Should timeout
+        ):
             await self.client.send_command("test command", response_timeout=0.1)
 
 

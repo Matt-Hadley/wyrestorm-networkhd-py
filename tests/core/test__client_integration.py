@@ -148,13 +148,15 @@ class TestCrossClientIntegration:
         for client in [ssh_client, rs232_client]:
             # Test connection failure
             with patch.object(client, "connect", new_callable=AsyncMock) as mock_connect:
-                # Ensure the mock simulates the error state
-                async def mock_connect_impl():
-                    nonlocal client
-                    client._set_connection_state("error", "Test error")
-                    raise ConnectionError("Test error")
+                # Create a closure that captures the current client
+                def create_mock_connect_impl(current_client):
+                    async def mock_connect_impl():
+                        current_client._set_connection_state("error", "Test error")
+                        raise ConnectionError("Test error")
 
-                mock_connect.side_effect = mock_connect_impl
+                    return mock_connect_impl
+
+                mock_connect.side_effect = create_mock_connect_impl(client)
 
                 with pytest.raises(ConnectionError):
                     await client.connect()

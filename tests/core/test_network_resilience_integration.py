@@ -76,14 +76,16 @@ class TestNetworkResilienceIntegration:
                 await client.connect()
 
                 # Test command with very short timeout
-                with patch.object(
-                    client,
-                    "_send_command_generic",
-                    new_callable=AsyncMock,
-                    side_effect=TimeoutError("Command timeout"),
+                with (
+                    patch.object(
+                        client,
+                        "_send_command_generic",
+                        new_callable=AsyncMock,
+                        side_effect=TimeoutError("Command timeout"),
+                    ),
+                    pytest.raises(TimeoutError),  # Should handle timeout gracefully
                 ):
-                    with pytest.raises(Exception):  # Should handle timeout gracefully
-                        await client.send_command("test command", response_timeout=0.1)
+                    await client.send_command("test command", response_timeout=0.1)
 
                 # Test command with normal timeout
                 with patch.object(
@@ -255,11 +257,11 @@ class TestNetworkResilienceIntegration:
                 await client.connect()
 
                 # Simulate message dispatcher behavior by calling recv directly
+                from contextlib import suppress
+
                 for _ in range(3):
-                    try:
-                        mock_shell.recv(1024)
-                    except Exception:
-                        pass  # Should handle gracefully
+                    with suppress(Exception):
+                        mock_shell.recv(1024)  # Should handle gracefully
 
             # Verify that recv was called multiple times
             assert recv_call_count >= 2  # Should have made multiple attempts

@@ -323,11 +323,13 @@ class TestNetworkHDClientSSHCommands:
         self.client.shell.recv_ready.return_value = False
 
         # Mock the timeout behavior
-        with patch.object(
-            self.client, "_send_command_generic", new_callable=AsyncMock, side_effect=Exception("Timeout")
+        with (
+            patch.object(
+                self.client, "_send_command_generic", new_callable=AsyncMock, side_effect=Exception("Timeout")
+            ),
+            pytest.raises(Exception, match="Timeout"),
         ):
-            with pytest.raises(Exception, match="Timeout"):
-                await self.client.send_command("test command", response_timeout=0.1)
+            await self.client.send_command("test command", response_timeout=0.1)
 
 
 @pytest.mark.unit

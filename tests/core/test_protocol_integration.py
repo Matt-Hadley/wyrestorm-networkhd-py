@@ -144,14 +144,14 @@ class TestNetworkHDProtocolIntegration:
                     "\x00\x01\x02",  # Binary data
                 ]
 
+                from contextlib import suppress
+
                 for malformed_msg in malformed_messages:
                     # These should not crash the notification handler
-                    try:
-                        await client.notification_handler.handle_notification(malformed_msg)
-                    except Exception:
+                    with suppress(Exception):
                         # Some exceptions are expected for malformed data
                         # The important thing is that the client remains functional
-                        pass
+                        await client.notification_handler.handle_notification(malformed_msg)
 
                 # Verify client is still functional after handling malformed messages
                 assert client.is_connected()
@@ -378,11 +378,13 @@ class TestCrossProtocolIntegration:
             # Track notifications
             received_notifications = []
 
-            def callback(notification):
-                nonlocal received_notifications
-                received_notifications.append(notification)
+            def create_callback(notifications_list):
+                def callback(notification):
+                    notifications_list.append(notification)
 
-            client.register_notification_callback("test", callback)
+                return callback
+
+            client.register_notification_callback("test", create_callback(received_notifications))
 
             # Mock connection based on client type
             if isinstance(client, NetworkHDClientSSH):
