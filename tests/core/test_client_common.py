@@ -199,8 +199,14 @@ class TestClientMessageDispatcher:
     @pytest.mark.asyncio
     async def test_stop_message_dispatcher(self, client):
         """Test stopping message dispatcher."""
-        mock_task = Mock()
-        mock_task.cancel = Mock()
+        # Create a proper Task-like mock
+        import asyncio
+
+        async def dummy_coro():
+            pass
+
+        mock_task = asyncio.create_task(dummy_coro())
+        mock_task.cancel = Mock(wraps=mock_task.cancel)  # Wrap the real cancel method
         client._message_dispatcher_task = mock_task
         client._dispatcher_enabled = True
 

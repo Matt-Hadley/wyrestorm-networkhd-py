@@ -601,3 +601,52 @@ class TestNotificationParser:
         notification = "   "
         with pytest.raises(ValueError, match="Unknown notification type"):
             NotificationParser.parse_notification(notification)
+
+    def test_get_notification_type_endpoint(self):
+        """Test getting notification type for endpoint notifications."""
+        assert NotificationParser.get_notification_type("notify endpoint + display1") == "endpoint"
+        assert NotificationParser.get_notification_type("notify endpoint - display1") == "endpoint"
+
+    def test_get_notification_type_cecinfo(self):
+        """Test getting notification type for CEC notifications."""
+        assert NotificationParser.get_notification_type('notify cecinfo display1 "data"') == "cecinfo"
+
+    def test_get_notification_type_irinfo(self):
+        """Test getting notification type for infrared notifications."""
+        assert NotificationParser.get_notification_type('notify irinfo display1 "data"') == "irinfo"
+
+    def test_get_notification_type_serialinfo(self):
+        """Test getting notification type for serial notifications."""
+        assert NotificationParser.get_notification_type("notify serialinfo display1 hex 10:data") == "serialinfo"
+
+    def test_get_notification_type_video(self):
+        """Test getting notification type for video notifications."""
+        assert NotificationParser.get_notification_type("notify video found display1") == "video"
+
+    def test_get_notification_type_sink(self):
+        """Test getting notification type for sink notifications."""
+        assert NotificationParser.get_notification_type("notify sink lost display1") == "sink"
+
+    def test_get_notification_type_with_whitespace(self):
+        """Test getting notification type with whitespace."""
+        assert NotificationParser.get_notification_type("  notify endpoint + display1  ") == "endpoint"
+
+    def test_get_notification_type_unknown(self):
+        """Test getting notification type for unknown notifications."""
+        with pytest.raises(ValueError, match="Unknown notification type: notify unknown data"):
+            NotificationParser.get_notification_type("notify unknown data")
+
+    def test_get_notification_type_invalid_format(self):
+        """Test getting notification type for invalid format."""
+        with pytest.raises(ValueError, match="Unknown notification type: invalid format"):
+            NotificationParser.get_notification_type("invalid format")
+
+    def test_get_notification_type_empty_string(self):
+        """Test getting notification type for empty string."""
+        with pytest.raises(ValueError, match="Unknown notification type: "):
+            NotificationParser.get_notification_type("")
+
+    def test_get_notification_type_whitespace_only(self):
+        """Test getting notification type for whitespace-only string."""
+        with pytest.raises(ValueError, match="Unknown notification type: "):
+            NotificationParser.get_notification_type("   ")
