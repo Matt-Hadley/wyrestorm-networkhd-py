@@ -102,7 +102,8 @@ class VideoWallCommands:
         command = f"scene set {videowall}-{scene} {x} {y} {tx}"
         response = await self.client.send_command(command)
         # Consider success if the response matches the expected statement exactly
-        return response.strip() == f"scene {videowall}-{scene}'s source in [{x},{y}] change to {tx}"
+        result: bool = response.strip() == f"scene {videowall}-{scene}'s source in [{x},{y}] change to {tx}"
+        return result
 
     async def vw_change(self, videowall: str, scene: str, lscreen: str, tx: str) -> bool:
         """Change the encoder assigned to a Logical Screen in a 'standard video wall' Scene
@@ -146,7 +147,8 @@ class VideoWallCommands:
         """
         command = f"vw change {videowall}-{scene}_{lscreen} {tx}"
         response = await self.client.send_command(command)
-        return response.strip() == f"videowall change {videowall}-{scene}_{lscreen} tx connect to {tx}"
+        result: bool = response.strip() == f"videowall change {videowall}-{scene}_{lscreen} tx connect to {tx}"
+        return result
 
     # =============================================================
     # 10.2 Video Wall – 'Video Wall within a Wall' Scenes

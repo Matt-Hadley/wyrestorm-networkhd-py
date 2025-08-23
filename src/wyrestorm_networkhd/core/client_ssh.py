@@ -118,8 +118,8 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
             self._set_connection_state("connecting")
             self.logger.info(f"Connecting to {self.host}:{self.port}")
 
-            # Call base class connect to validate config
-            await super().connect()
+            # Base class connect is abstract, so we don't call super()
+            # The base class just validates configuration parameters
 
             # Single connection mode
             self.client = paramiko.SSHClient()
@@ -206,7 +206,7 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
 
         return connected
 
-    async def send_command(self, command: str, response_timeout: float = 10.0) -> str:
+    async def send_command(self, command: str, response_timeout: float | None = None) -> str:
         """Send a command to the device via SSH and get the response.
 
         Args:
@@ -225,6 +225,8 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
 
         # Use the base class's generic command infrastructure
         def send_func(cmd: str) -> None:
+            if self.shell is None:
+                raise ConnectionError("SSH shell is not available")
             self.shell.send(cmd + "\n")
             self.logger.debug(f"Sending command via SSH: {cmd}")
 
@@ -232,7 +234,9 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
             # This will be called by the message dispatcher
             return None
 
-        response = await self._send_command_generic(command.strip(), send_func, receive_func, response_timeout)
+        # Use default timeout if none provided
+        timeout = response_timeout if response_timeout is not None else 10.0
+        response = await self._send_command_generic(command.strip(), send_func, receive_func, timeout)
 
         self.logger.debug(f"Raw response: {response}")
         return response

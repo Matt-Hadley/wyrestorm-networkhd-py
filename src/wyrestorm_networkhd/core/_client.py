@@ -144,7 +144,7 @@ class _BaseNetworkHDClient(ABC):
             "commands_sent": 0,
             "commands_failed": 0,
             "notifications_received": 0,
-            "last_command_time": None,
+            "last_command_time": 0.0,  # Use 0.0 instead of None to avoid type issues
         }
 
         # Set up logger for this client instance
@@ -465,7 +465,7 @@ class _BaseNetworkHDClient(ABC):
         # Auto-close circuit after configured timeout
         import time
 
-        if self._circuit_open_time and (time.time() - self._circuit_open_time) > self._circuit_breaker_timeout:
+        if self._circuit_open_time is not None and (time.time() - self._circuit_open_time) > self._circuit_breaker_timeout:
             self.logger.info("Circuit breaker auto-closing after timeout")
             self._circuit_open = False
             self._failure_count = 0

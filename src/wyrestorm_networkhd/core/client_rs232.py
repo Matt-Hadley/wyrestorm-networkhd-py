@@ -3,11 +3,11 @@
 import asyncio
 import contextlib
 
-import async_pyserial
+import async_pyserial  # type: ignore[import-untyped]
 
 from ..exceptions import ConnectionError
 from ..logging_config import get_logger
-from ._client import _BaseNetworkHDClient
+from ._client import _BaseNetworkHDClient, _ConnectionState
 
 
 class NetworkHDClientRS232(_BaseNetworkHDClient):
@@ -98,8 +98,8 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
             self._set_connection_state("connecting")
             self.logger.info(f"Connecting to {self.port} at {self.baudrate} baud")
 
-            # Call base class connect to validate config
-            await super().connect()
+            # Base class connect is abstract, so we don't call super()
+            # The base class just validates configuration parameters
 
             # Create async serial connection
             self.serial = async_pyserial.SerialPort(
@@ -155,12 +155,12 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
         """
         connected = self.serial is not None and self.serial.is_open
 
-        if not connected and self._connection_state == "connected":
+        if not connected and self._connection_state == _ConnectionState.CONNECTED:
             self._set_connection_state("disconnected")
 
         return connected
 
-    async def send_command(self, command: str, response_timeout: float = 10.0) -> str:
+    async def send_command(self, command: str, response_timeout: float | None = None) -> str:
         """Send a command to the device via RS232 and get the response.
 
         Args:
@@ -180,6 +180,8 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
         # Use the base class's generic command infrastructure
         def send_func(cmd: str) -> None:
             # Add carriage return and line feed for RS232
+            if self.serial is None:
+                raise ConnectionError("RS232 serial port is not available")
             message = cmd + "\r\n"
             asyncio.create_task(self.serial.write(message.encode()))
             self.logger.debug(f"Sending command via RS232: {cmd}")
@@ -188,7 +190,9 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
             # This will be called by the message dispatcher
             return None
 
-        response = await self._send_command_generic(command.strip(), send_func, receive_func, response_timeout)
+        # Use default timeout if none provided
+        timeout = response_timeout if response_timeout is not None else 10.0
+        response = await self._send_command_generic(command.strip(), send_func, receive_func, timeout)
 
         self.logger.debug(f"Raw response: {response}")
         return response
@@ -270,7 +274,13 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
                     self.logger.error(f"Error in message dispatcher: {e}")
                 break
 
-        self.logger.debug("Message dispatcher stopped")
+        # Loop has terminated - log the reason
+        if not self._dispatcher_enabled:
+            self.logger.debug("Message dispatcher stopped - dispatcher disabled")
+        elif not self.is_connected():
+            self.logger.debug("Message dispatcher stopped - connection lost")
+        else:
+            self.logger.debug("Message dispatcher stopped - exception occurred")
 
     async def _handle_command_response(self, response_line: str) -> None:
         """Send response line to the first available pending command.

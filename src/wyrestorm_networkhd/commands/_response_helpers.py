@@ -111,6 +111,9 @@ def parse_json_response(response: str, prefix: str) -> dict[str, Any]:
 
     json_part = response.split(prefix)[1].strip()
     try:
-        return json.loads(json_part)
+        result = json.loads(json_part)
+        if not isinstance(result, dict):
+            raise ValueError(f"Expected JSON object, got {type(result).__name__}")
+        return result
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in response: {e}") from e

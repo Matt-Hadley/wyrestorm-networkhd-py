@@ -269,7 +269,9 @@ class NotificationSerialinfo:
         # Remove leading CR/LF from data
         serial_data = data_part.lstrip("\r\n")
 
-        return cls(device=device, data_format=data_format, data_length=data_length, serial_data=serial_data)
+        # Cast data_format to the literal type after validation
+        data_format_literal: Literal["hex", "ascii"] = data_format  # type: ignore[assignment]
+        return cls(device=device, data_format=data_format_literal, data_length=data_length, serial_data=serial_data)
 
 
 @dataclass
@@ -278,7 +280,7 @@ class NotificationVideo:
 
     status: Literal["lost", "found"]
     device: str
-    source_device: str = None  # Only present for RX found notifications
+    source_device: str | None = None  # Only present for RX found notifications
 
     @classmethod
     def parse(cls, notification: str) -> "NotificationVideo":
@@ -334,7 +336,9 @@ class NotificationVideo:
         if len(parts) > 4:
             source_device = parts[4]
 
-        return cls(status=status, device=device, source_device=source_device)
+        # Cast status to the literal type after validation
+        status_literal: Literal["lost", "found"] = status  # type: ignore[assignment]
+        return cls(status=status_literal, device=device, source_device=source_device)
 
 
 @dataclass
@@ -386,7 +390,9 @@ class NotificationSink:
         if status not in ["lost", "found"]:
             raise ValueError(f"Invalid sink power status: {status}")
 
-        return cls(status=status, device=device)
+        # Cast status to the literal type after validation
+        status_literal: Literal["lost", "found"] = status  # type: ignore[assignment]
+        return cls(status=status_literal, device=device)
 
 
 class NotificationParser:
@@ -437,7 +443,12 @@ class NotificationParser:
 
         for prefix, info in NotificationParser._NOTIFICATION_MAPPINGS.items():
             if notification.startswith(prefix):
-                return info["type"]
+                # Type-safe way to access the type field
+                notification_type = info["type"]
+                if isinstance(notification_type, str):
+                    return notification_type
+                else:
+                    raise ValueError(f"Invalid notification type format: {notification_type}")
 
         raise ValueError(f"Unknown notification type: {notification}")
 
@@ -467,16 +478,26 @@ class NotificationParser:
 
         for prefix, info in NotificationParser._NOTIFICATION_MAPPINGS.items():
             if notification.startswith(prefix):
-                return info["class"].parse(notification)
+                # Type-safe way to call parse on the notification class
+                notification_class = info["class"]
+                # Use type: ignore for the dynamic method call since we know all classes have parse methods
+                result = notification_class.parse(notification)  # type: ignore[attr-defined]
+                # Ensure the result is of the expected type
+                if isinstance(result, (NotificationEndpoint, NotificationCecinfo, NotificationIrinfo, 
+                                     NotificationSerialinfo, NotificationVideo, NotificationSink)):
+                    return result
+                else:
+                    raise ValueError(f"Unexpected result type from {notification_class}: {type(result)}")
 
         raise ValueError(f"Unknown notification type: {notification}")
 
 
 # Type alias for all notification objects (defined after all classes)
-# Extract classes dynamically from the NotificationParser mappings
-def _get_notification_types():
-    """Get all notification types dynamically from the parser mappings."""
-    return tuple(info["class"] for info in NotificationParser._NOTIFICATION_MAPPINGS.values())
-
-
-NotificationObject = _get_notification_types()
+NotificationObject = (
+    NotificationEndpoint
+    | NotificationCecinfo
+    | NotificationIrinfo
+    | NotificationSerialinfo
+    | NotificationVideo
+    | NotificationSink
+)

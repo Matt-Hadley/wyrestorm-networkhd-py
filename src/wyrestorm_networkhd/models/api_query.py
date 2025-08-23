@@ -107,7 +107,7 @@ class Version:
 
     api_version: str
     web_version: str
-    core_version: str
+    core_version: str | None
 
     @classmethod
     def parse(cls, response: str) -> "Version":
@@ -494,7 +494,9 @@ class MatrixInfrared2:
 
         for line in data_lines:
             device, mode, target_device = _parse_device_mode_assignment(line)
-            assignments.append(InfraredReceiverAssignment(device=device, mode=mode, target_device=target_device))
+            # Cast mode to the literal type after validation
+            mode_literal: Literal["single", "api", "all", "null"] = mode  # type: ignore[assignment]
+            assignments.append(InfraredReceiverAssignment(device=device, mode=mode_literal, target_device=target_device))
 
         return cls(assignments=assignments)
 
@@ -541,7 +543,9 @@ class MatrixSerial2:
 
         for line in data_lines:
             device, mode, target_device = _parse_device_mode_assignment(line)
-            assignments.append(SerialPortAssignment(device=device, mode=mode, target_device=target_device))
+            # Cast mode to the literal type after validation
+            mode_literal: Literal["single", "api", "all", "null"] = mode  # type: ignore[assignment]
+            assignments.append(SerialPortAssignment(device=device, mode=mode_literal, target_device=target_device))
 
         return cls(assignments=assignments)
 
@@ -623,7 +627,7 @@ class VideoWallLogicalScreenList:
             Response example: Video wall information:\nOfficeVW-Combined_TopTwo source1\nRow 1: display1 display2\nOfficeVW-AllCombined_AllDisplays source2\nRow 1: display1 display2 display3\nRow 2: display4 display5 display6
         """
         data_lines = _skip_to_header(response, "Video wall information:")
-        screens = []
+        screens: list[VideoWallLogicalScreen] = []
         current_screen = None
         current_rows = []
 
@@ -793,8 +797,10 @@ class MultiviewTile:
         if len(coords) != 4:
             raise ValueError(f"Invalid tile coordinates: {parts[1]}")
 
+        # Cast scaling to the literal type after validation
+        scaling_literal: Literal["fit", "stretch"] = scaling  # type: ignore[assignment]
         return cls(
-            tx=tx, x=int(coords[0]), y=int(coords[1]), width=int(coords[2]), height=int(coords[3]), scaling=scaling
+            tx=tx, x=int(coords[0]), y=int(coords[1]), width=int(coords[2]), height=int(coords[3]), scaling=scaling_literal
         )
 
 
@@ -846,6 +852,9 @@ class CustomMultiviewLayoutList:
             if mode not in ["tile", "overlay"]:
                 raise ValueError(f"Invalid multiview mode '{mode}', expected 'tile' or 'overlay': {line}")
 
+            # Cast mode to the literal type after validation
+            mode_literal: Literal["tile", "overlay"] = mode  # type: ignore[assignment]
+
             tile_configs = parts[2:]
 
             tiles = []
@@ -855,6 +864,6 @@ class CustomMultiviewLayoutList:
                 except ValueError as e:
                     raise ValueError(f"Invalid tile configuration in line '{line}': {e}") from e
 
-            configurations.append(CustomMultiviewLayout(rx=rx, mode=mode, tiles=tiles))
+            configurations.append(CustomMultiviewLayout(rx=rx, mode=mode_literal, tiles=tiles))
 
         return cls(configurations=configurations)

@@ -447,7 +447,10 @@ class APIQueryCommands:
         else:
             command = "matrix get"
         response = await self.client.send_command(command)
-        return Matrix.parse(response)
+        result = Matrix.parse(response)
+        # Matrix.parse returns BaseMatrix, but we know it's actually Matrix
+        assert isinstance(result, Matrix)
+        return result
 
     async def matrix_video_get(self, rx_devices: list[str] | None = None) -> MatrixVideo:
         """Query RX stream assignments for video output
@@ -506,7 +509,10 @@ class APIQueryCommands:
         else:
             command = "matrix video get"
         response = await self.client.send_command(command)
-        return MatrixVideo.parse(response)
+        result = MatrixVideo.parse(response)
+        # MatrixVideo.parse returns BaseMatrix, but we know it's actually MatrixVideo
+        assert isinstance(result, MatrixVideo)
+        return result
 
     async def matrix_audio_get(self, rx_devices: list[str] | None = None) -> MatrixAudio:
         """Query RX stream assignments for HDMI audio output
@@ -565,7 +571,10 @@ class APIQueryCommands:
         else:
             command = "matrix audio get"
         response = await self.client.send_command(command)
-        return MatrixAudio.parse(response)
+        result = MatrixAudio.parse(response)
+        # MatrixAudio.parse returns BaseMatrix, but we know it's actually MatrixAudio
+        assert isinstance(result, MatrixAudio)
+        return result
 
     async def matrix_audio2_get(self, rx_devices: list[str] | None = None) -> MatrixAudio2:
         """Query RX stream assignments for analog audio output
@@ -623,7 +632,10 @@ class APIQueryCommands:
         else:
             command = "matrix audio2 get"
         response = await self.client.send_command(command)
-        return MatrixAudio2.parse(response)
+        result = MatrixAudio2.parse(response)
+        # MatrixAudio2.parse returns BaseMatrix, but we know it's actually MatrixAudio2
+        assert isinstance(result, MatrixAudio2)
+        return result
 
     async def matrix_audio3_get(self, rx_device: str | None = None, tx_device: str | None = None) -> MatrixAudio3:
         """Query RX stream assignments for ARC
@@ -674,7 +686,10 @@ class APIQueryCommands:
         else:
             command = "matrix audio3 get"
         response = await self.client.send_command(command)
-        return MatrixAudio3.parse(response)
+        result = MatrixAudio3.parse(response)
+        # MatrixAudio3.parse returns MatrixAudio3
+        assert isinstance(result, MatrixAudio3)
+        return result
 
     async def matrix_usb_get(self, rx_devices: list[str] | None = None) -> MatrixUsb:
         """Query RX stream assignments for USB
@@ -731,7 +746,10 @@ class APIQueryCommands:
         else:
             command = "matrix usb get"
         response = await self.client.send_command(command)
-        return MatrixUsb.parse(response)
+        result = MatrixUsb.parse(response)
+        # MatrixUsb.parse returns BaseMatrix, but we know it's actually MatrixUsb
+        assert isinstance(result, MatrixUsb)
+        return result
 
     async def matrix_infrared_get(self, rx_devices: list[str] | None = None) -> MatrixInfrared:
         """Query RX stream assignments for infrared
@@ -788,7 +806,10 @@ class APIQueryCommands:
         else:
             command = "matrix infrared get"
         response = await self.client.send_command(command)
-        return MatrixInfrared.parse(response)
+        result = MatrixInfrared.parse(response)
+        # MatrixInfrared.parse returns BaseMatrix, but we know it's actually MatrixInfrared
+        assert isinstance(result, MatrixInfrared)
+        return result
 
     async def matrix_infrared2_get(self, devices: list[str] | None = None) -> MatrixInfrared2:
         """Query TX or RX stream assignments for infrared receiver port
@@ -849,7 +870,10 @@ class APIQueryCommands:
         else:
             command = "matrix infrared2 get"
         response = await self.client.send_command(command)
-        return MatrixInfrared2.parse(response)
+        result = MatrixInfrared2.parse(response)
+        # MatrixInfrared2.parse returns MatrixInfrared2
+        assert isinstance(result, MatrixInfrared2)
+        return result
 
     async def matrix_serial_get(self, rx_devices: list[str] | None = None) -> MatrixSerial:
         """Query RX stream assignments for RS-232
@@ -905,7 +929,10 @@ class APIQueryCommands:
         else:
             command = "matrix serial get"
         response = await self.client.send_command(command)
-        return MatrixSerial.parse(response)
+        result = MatrixSerial.parse(response)
+        # MatrixSerial.parse returns BaseMatrix, but we know it's actually MatrixSerial
+        assert isinstance(result, MatrixSerial)
+        return result
 
     async def matrix_serial2_get(self, devices: list[str] | None = None) -> MatrixSerial2:
         """Query TX or RX stream assignments for RS-232 port
@@ -966,7 +993,10 @@ class APIQueryCommands:
         else:
             command = "matrix serial2 get"
         response = await self.client.send_command(command)
-        return MatrixSerial2.parse(response)
+        result = MatrixSerial2.parse(response)
+        # MatrixSerial2.parse returns MatrixSerial2
+        assert isinstance(result, MatrixSerial2)
+        return result
 
     # =============================================================
     # 13.4 Query Commands – Video Walls
