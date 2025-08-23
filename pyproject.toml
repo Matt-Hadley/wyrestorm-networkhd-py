@@ -164,6 +164,7 @@ addopts = [
 markers = [
     "unit: marks tests as unit tests",
     "benchmark: marks tests as performance benchmarks",
+    "asyncio: marks tests as async tests",
 ]
 
 # Ruff configuration - replaces Black, isort, and Flake8
