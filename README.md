@@ -26,7 +26,7 @@ from wyrestorm_networkhd import NetworkHDClientSSH, NHDAPI
 # Create client with SSH connection
 client = NetworkHDClientSSH(
     host="192.168.1.100",
-    port=22,
+    port=10022,
     username="wyrestorm",
     password="networkhd",
     ssh_host_key_policy="warn"
@@ -162,7 +162,7 @@ from wyrestorm_networkhd import NetworkHDClientSSH
 
 client = NetworkHDClientSSH(
     host="192.168.1.100",
-    port=22,
+    port=10022,
     username="admin",
     password="secret",
     ssh_host_key_policy="warn"
