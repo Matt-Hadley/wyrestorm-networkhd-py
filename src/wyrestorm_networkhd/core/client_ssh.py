@@ -32,6 +32,10 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
         password: str,
         ssh_host_key_policy: HostKeyPolicy,
         timeout: float = 10.0,
+        *,
+        circuit_breaker_timeout: float = 30.0,
+        heartbeat_interval: float = 30.0,
+        message_dispatcher_interval: float = 0.1,
     ):
         """Initialize SSH client.
 
@@ -43,11 +47,19 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
             ssh_host_key_policy: SSH host key verification policy.
                 Must be one of: 'auto_add', 'reject', or 'warn'.
             timeout: Connection timeout in seconds (default: 10.0).
+            circuit_breaker_timeout: Time in seconds after which the circuit breaker
+                will automatically reset after being opened (default: 30.0).
+            heartbeat_interval: Interval in seconds between heartbeat checks (default: 30.0).
+            message_dispatcher_interval: Sleep interval in seconds for the message
+                dispatcher loop to prevent busy waiting (default: 0.1).
 
         Raises:
             ValueError: If required parameters are missing or invalid.
         """
-        super().__init__()
+        super().__init__(
+            circuit_breaker_timeout=circuit_breaker_timeout,
+            heartbeat_interval=heartbeat_interval,
+        )
 
         # Validate parameters
         if not host:
@@ -64,6 +76,8 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
             raise ValueError(
                 f"Invalid ssh_host_key_policy: {ssh_host_key_policy}. Must be one of: auto_add, reject, warn"
             )
+        if message_dispatcher_interval <= 0:
+            raise ValueError("Message dispatcher interval must be positive")
 
         # Store connection parameters
         self.host = host
@@ -72,6 +86,7 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
         self.password = password
         self.timeout = timeout
         self.ssh_host_key_policy = ssh_host_key_policy
+        self.message_dispatcher_interval = message_dispatcher_interval
 
         # SSH connection objects
         self.client: paramiko.SSHClient | None = None
@@ -191,12 +206,12 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
 
         return connected
 
-    async def send_command(self, command: str, response_timeout: float | None = None) -> str:
+    async def send_command(self, command: str, response_timeout: float = 10.0) -> str:
         """Send a command to the device via SSH and get the response.
 
         Args:
             command: The command string to send.
-            response_timeout: Maximum time to wait for response (default: 10 seconds).
+            response_timeout: Maximum time to wait for response (default: 10.0 seconds).
 
         Returns:
             The response string from the device.
@@ -310,7 +325,7 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
                             await self._handle_command_response(line)
 
                 # Small delay to prevent busy waiting
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(self.message_dispatcher_interval)
 
             except Exception as e:
                 if self._dispatcher_enabled:

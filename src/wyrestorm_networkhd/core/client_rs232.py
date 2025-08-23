@@ -26,6 +26,10 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
         port: str,
         baudrate: int,
         timeout: float = 10.0,
+        *,
+        circuit_breaker_timeout: float = 30.0,
+        heartbeat_interval: float = 30.0,
+        message_dispatcher_interval: float = 0.05,
         **serial_kwargs,
     ):
         """Initialize RS232 client.
@@ -34,12 +38,20 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
             port: The serial port (e.g., '/dev/ttyUSB0' on Linux, 'COM1' on Windows).
             baudrate: The baud rate for serial communication.
             timeout: Connection timeout in seconds (default: 10.0).
+            circuit_breaker_timeout: Time in seconds after which the circuit breaker
+                will automatically reset after being opened (default: 30.0).
+            heartbeat_interval: Interval in seconds between heartbeat checks (default: 30.0).
+            message_dispatcher_interval: Sleep interval in seconds for the message
+                dispatcher loop to prevent busy waiting (default: 0.05).
             **serial_kwargs: Additional serial port configuration options.
 
         Raises:
             ValueError: If required parameters are missing or invalid.
         """
-        super().__init__()
+        super().__init__(
+            circuit_breaker_timeout=circuit_breaker_timeout,
+            heartbeat_interval=heartbeat_interval,
+        )
 
         # Validate parameters
         if not port:
@@ -48,12 +60,15 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
             raise ValueError("Baudrate must be a positive integer")
         if timeout <= 0:
             raise ValueError("Timeout must be positive")
+        if message_dispatcher_interval <= 0:
+            raise ValueError("Message dispatcher interval must be positive")
 
         # Store connection parameters
         self.port = port
         self.baudrate = baudrate
         self.timeout = timeout
         self.serial_kwargs = serial_kwargs
+        self.message_dispatcher_interval = message_dispatcher_interval
 
         # Serial connection objects
         self.serial: async_pyserial.AsyncSerial | None = None
@@ -145,12 +160,12 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
 
         return connected
 
-    async def send_command(self, command: str, response_timeout: float | None = None) -> str:
+    async def send_command(self, command: str, response_timeout: float = 10.0) -> str:
         """Send a command to the device via RS232 and get the response.
 
         Args:
             command: The command string to send.
-            response_timeout: Maximum time to wait for response (default: 10 seconds).
+            response_timeout: Maximum time to wait for response (default: 10.0 seconds).
 
         Returns:
             The response string from the device.
@@ -248,7 +263,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
                             await self._handle_command_response(line)
 
                 # Small delay to prevent busy waiting
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(self.message_dispatcher_interval)
 
             except Exception as e:
                 if self._dispatcher_enabled:

@@ -17,7 +17,7 @@ Default behavior:
 - Format: Standard Python logging format
 - Automatic setup when client is imported
 
-For usage examples, see README.md and example.py files.
+For usage examples, see README.md.
 """
 
 import logging

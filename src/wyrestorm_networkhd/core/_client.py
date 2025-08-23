@@ -96,8 +96,27 @@ class _BaseNetworkHDClient(ABC):
     inherit from this class.
     """
 
-    def __init__(self):
-        """Initialize base client with notification handler and state management."""
+    def __init__(
+        self,
+        *,
+        circuit_breaker_timeout: float,
+        heartbeat_interval: float,
+    ):
+        """Initialize base client with notification handler and state management.
+
+        Args:
+            circuit_breaker_timeout: Time in seconds after which the circuit breaker
+                will automatically reset after being opened.
+            heartbeat_interval: Interval in seconds between heartbeat checks.
+
+        Raises:
+            ValueError: If any parameters are invalid.
+        """
+        # Validate parameters
+        if circuit_breaker_timeout <= 0:
+            raise ValueError("Circuit breaker timeout must be positive")
+        if heartbeat_interval <= 0:
+            raise ValueError("Heartbeat interval must be positive")
         # Create notification handler (same for all protocols)
         self.notification_handler = _NotificationHandler()
 
@@ -106,20 +125,21 @@ class _BaseNetworkHDClient(ABC):
         self._connection_error: str | None = None
         self._last_connection_attempt: float | None = None
 
-        # Circuit breaker for connection failures
+        # Circuit breaker for connection failures (configurable timeout)
         self._failure_count = 0
         self._last_failure_time: float | None = None
         self._circuit_open = False
         self._circuit_open_time: float | None = None
+        self._circuit_breaker_timeout = circuit_breaker_timeout
 
         # Command response handling (generic)
         self._pending_commands: dict[str, asyncio.Queue] = {}
         self._command_lock = asyncio.Lock()
         self._command_id_counter = 0
 
-        # Connection health monitoring (generic)
+        # Connection health monitoring (generic, configurable interval)
         self._last_heartbeat: float | None = None
-        self._heartbeat_interval: float = 30.0  # seconds
+        self._heartbeat_interval: float = heartbeat_interval
         self._connection_metrics = {
             "commands_sent": 0,
             "commands_failed": 0,
@@ -242,7 +262,7 @@ class _BaseNetworkHDClient(ABC):
     # PUBLIC METHODS - Connection Management
     # ============================================================================
 
-    async def reconnect(self, max_attempts: int = 3, delay: float = 1.0) -> None:
+    async def reconnect(self, max_attempts: int, delay: float) -> None:
         """Attempt to reconnect to the device with exponential backoff.
 
         Args:
@@ -288,7 +308,7 @@ class _BaseNetworkHDClient(ABC):
         command: str,
         send_func: Callable[[str], None],
         receive_func: Callable[[], str | None],  # noqa: ARG002
-        response_timeout: float | None = None,
+        response_timeout: float,
     ) -> str:
         """Generic command sending with response handling.
 
@@ -305,9 +325,6 @@ class _BaseNetworkHDClient(ABC):
             ConnectionError: If not connected.
             TimeoutError: If response times out.
         """
-        if response_timeout is None:
-            response_timeout = 10.0
-
         async with self._command_lock:
             command_id = str(self._command_id_counter)
             self._command_id_counter += 1
@@ -445,10 +462,10 @@ class _BaseNetworkHDClient(ABC):
         if not self._circuit_open:
             return False
 
-        # Auto-close circuit after 30 seconds
+        # Auto-close circuit after configured timeout
         import time
 
-        if self._circuit_open_time and (time.time() - self._circuit_open_time) > 30:
+        if self._circuit_open_time and (time.time() - self._circuit_open_time) > self._circuit_breaker_timeout:
             self.logger.info("Circuit breaker auto-closing after timeout")
             self._circuit_open = False
             self._failure_count = 0

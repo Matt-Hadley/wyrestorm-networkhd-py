@@ -30,6 +30,10 @@ client = NetworkHDClientSSH(
     username="wyrestorm",
     password="networkhd",
     ssh_host_key_policy="warn"
+    # Optional configuration parameters for reliability and performance:
+    # circuit_breaker_timeout=30.0,        # Time before auto-reset after connection failures
+    # heartbeat_interval=30.0,             # Interval for connection health monitoring
+    # message_dispatcher_interval=0.1      # Polling frequency for incoming messages
 )
 ```
 
@@ -43,19 +47,40 @@ client = NetworkHDClientRS232(
     port="/dev/ttyUSB0",  # Linux: /dev/ttyUSB0, Windows: COM1
     baudrate=115200,
     timeout=10.0
+    # Optional configuration parameters for reliability and performance:
+    # circuit_breaker_timeout=30.0,        # Time before auto-reset after connection failures
+    # heartbeat_interval=30.0,             # Interval for connection health monitoring
+    # message_dispatcher_interval=0.05     # Polling frequency for incoming messages (faster for RS232)
 )
 ```
 
-# Use with context manager
+### Basic Usage
 
-async with client: # Create API wrapper api = NHDAPI(client)
+```python
+async def main():
+    # Create client (SSH or RS232)
+    client = NetworkHDClientSSH(
+        host="192.168.1.100",
+        port=10022,
+        username="wyrestorm",
+        password="networkhd",
+        ssh_host_key_policy="warn"
+    )
 
-    # Execute commands and get typed responses
-    device_list = await api.api_query.get_devicelist()
-    matrix_info = await api.api_query.matrix_get()
-    await api.video_wall.scene_active("office", "splitmode")
+    # Use async context manager for automatic connection handling
+    async with client:
+        # Create API wrapper for organized command access
+        api = NHDAPI(client)
 
-````
+        # Execute commands and get typed responses
+        device_list = await api.api_query.get_devicelist()
+        matrix_info = await api.api_query.matrix_get()
+        await api.video_wall.scene_active("office", "splitmode")
+
+# Run the async function
+import asyncio
+asyncio.run(main())
+```
 
 ## Features
 
@@ -78,6 +103,141 @@ API categories match those in the API Reference (see below).
 - **Multiview**: Preset and custom layout management
 - **Device Control**: Reboot, reset, and port switching
 - **Notifications**: Real-time device status updates
+
+## Connection Types
+
+### SSH Connection
+
+The SSH client requires explicit SSH host key verification policy selection to ensure users make conscious security
+decisions.
+
+### RS232 Connection
+
+The RS232 client provides serial communication support as an optional extension. Install with:
+
+```bash
+pip install wyrestorm-networkhd[rs232]
+```
+
+**Note**: RS232 support requires the `async-pyserial` package and appropriate serial port permissions on your system.
+
+### Connection Configuration
+
+Both connection types support optional configuration parameters for reliability and performance tuning:
+
+- **`circuit_breaker_timeout`** (default: 30.0 seconds): Time after which the circuit breaker automatically resets
+  following connection failures. The circuit breaker prevents cascading failures by temporarily blocking connection
+  attempts after 3 consecutive failures.
+
+- **`heartbeat_interval`** (default: 30.0 seconds): Interval for connection health monitoring and metrics tracking. Used
+  internally for connection state management.
+
+- **`message_dispatcher_interval`** (default: 0.1s SSH, 0.05s RS232): Polling frequency for processing incoming
+  messages. Lower values provide faster response times but use more CPU. RS232 defaults to a faster interval due to its
+  typically higher message throughput.
+
+### Security Recommendations
+
+SSH Client:
+
+- **Production Environments**: Use `"reject"` or `"warn"` policies
+- **Development/Testing**: Use `"auto_add"` policy
+- **Controlled Networks**: `"auto_add"` may be acceptable if network security is assured Logging:
+- **Monitor Logs**: Always monitor logs for security warnings when using permissive policies
+
+## Usage Examples
+
+The following examples assume you have a client connected as shown in the [Basic Usage](#basic-usage) section above. All
+code snippets should be placed inside the `async with client:` block.
+
+### Matrix Switching Examples
+
+```python
+# Assign source1 to multiple displays
+response = await api.media_stream_matrix_switch.matrix_set("source1", ["display1", "display2"])
+
+# Set video-only routing
+response = await api.media_stream_matrix_switch.matrix_video_set("source2", "display3")
+
+# Get current matrix status
+matrix_status = await api.api_query.matrix_get()
+```
+
+### Device Control Examples
+
+```python
+# Send power on command to displays
+response = await api.connected_device_control.config_set_device_sinkpower("on", ["display1", "display2"])
+
+# Send custom infrared command
+ir_data = "0000 0067 0000 0015 0060 0018 0030 0018"
+response = await api.connected_device_control.infrared(ir_data, "source1")
+
+# Switch video source on encoder
+response = await api.device_port_switch.config_set_device_videosource("source1", "hdmi")
+
+# Control analog audio volume
+response = await api.audio_output.config_set_device_audio_volume_analog("up", "display1")
+```
+
+### Video Wall and Multiview Examples
+
+```python
+# Apply a video wall scene
+response = await api.video_wall.scene_active("OfficeVW", "Splitmode")
+
+# Apply multiview layout
+response = await api.multiview.mscene_active("display5", "gridlayout")
+```
+
+### Text Overlay Examples
+
+```python
+# Configure text overlay
+color = api.video_stream_text_overlay.get_color_hex("white", "nhd110_140")
+response = await api.video_stream_text_overlay.config_set_device_osd_param(
+    text="Hello World",
+    position_x=100,
+    position_y=100,
+    text_color=color,
+    text_size=2,
+    tx="source1"
+)
+
+# Enable text overlay
+response = await api.video_stream_text_overlay.config_set_device_osd("on", "source1")
+```
+
+## Real-time Notifications
+
+The client includes built-in support for real-time device notifications:
+
+```python
+from wyrestorm_networkhd import NetworkHDClientSSH
+
+client = NetworkHDClientSSH(
+    host="192.168.1.100",
+    port=10022,
+    username="admin",
+    password="secret",
+    ssh_host_key_policy="warn"
+)
+
+# Register notification callbacks
+def on_device_status(notification):
+    print(f"Device {notification.device} is {'online' if notification.online else 'offline'}")
+
+def on_cec_data(notification):
+    print(f"CEC data from {notification.device}: {notification.cec_data}")
+
+# Register callbacks for different notification types
+client.register_notification_callback("endpoint", on_device_status)
+client.register_notification_callback("cecinfo", on_cec_data)
+
+# Connect and start receiving notifications
+await client.connect()
+# Notifications will be automatically handled while connected
+```
 
 ## Logging
 
@@ -108,7 +268,7 @@ setup_logging(
     level="DEBUG",
     log_format="%(levelname)s - %(name)s - %(message)s"
 )
-````
+```
 
 ### Log Levels
 
@@ -126,96 +286,6 @@ Set `LOG_LEVEL` environment variable to control logging level:
 export LOG_LEVEL=DEBUG
 python your_script.py
 ```
-
-## Connection Types
-
-### SSH Connection
-
-The SSH client requires explicit SSH host key verification policy selection to ensure users make conscious security
-decisions.
-
-### RS232 Connection
-
-The RS232 client provides serial communication support as an optional extension. Install with:
-
-```bash
-pip install wyrestorm-networkhd[rs232]
-```
-
-**Note**: RS232 support requires the `async-pyserial` package and appropriate serial port permissions on your system.
-
-### Security Recommendations
-
-SSH Client:
-
-- **Production Environments**: Use `"reject"` or `"warn"` policies
-- **Development/Testing**: Use `"auto_add"` policy
-- **Controlled Networks**: `"auto_add"` may be acceptable if network security is assured Logging:
-- **Monitor Logs**: Always monitor logs for security warnings when using permissive policies
-
-## Real-time Notifications
-
-The client includes built-in support for real-time device notifications:
-
-```python
-from wyrestorm_networkhd import NetworkHDClientSSH
-
-client = NetworkHDClientSSH(
-    host="192.168.1.100",
-    port=10022,
-    username="admin",
-    password="secret",
-    ssh_host_key_policy="warn"
-)
-
-# Register notification callbacks
-def on_device_status(notification):
-    print(f"Device {notification.device} is {'online' if notification.online else 'offline'}")
-
-def on_cec_data(notification):
-    print(f"CEC data from {notification.device}: {notification.data}")
-
-# Register callbacks for different notification types
-client.register_notification_callback("endpoint", on_device_status)
-client.register_notification_callback("cec", on_cec_data)
-
-# Connect and start receiving notifications
-await client.connect()
-# Notifications will be automatically handled while connected
-```
-
-## 🧪 Testing
-
-This project uses pytest for comprehensive testing with coverage reporting.
-
-### Running Tests
-
-```bash
-# Run all tests
-make test
-
-# Run with coverage
-make test-cov
-
-# For verbose output
-VERBOSE=1 make test
-```
-
-### Test Categories
-
-- **Unit Tests**: Test individual functions and classes in isolation
-- **Async Tests**: Tests for async functionality using `@pytest.mark.asyncio`
-
-### VS Code Integration
-
-The project includes VS Code configuration for:
-
-- **Testing Panel**: Run and debug tests directly in the editor
-- **Coverage Display**: Visual coverage indicators in the gutter
-- **Debug Configurations**: Debug tests with breakpoints
-- **Tasks**: Quick access to common testing operations
-
-Install the recommended extensions and reload VS Code to enable testing features.
 
 ## 🚀 Development
 
@@ -271,13 +341,46 @@ make health-check
 VERBOSE=1 make test
 ```
 
+### Testing
+
+This project uses pytest for comprehensive testing with coverage reporting.
+
+#### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run with coverage
+make test-cov
+
+# For verbose output
+VERBOSE=1 make test
+```
+
+#### Test Categories
+
+- **Unit Tests**: Test individual functions and classes in isolation
+- **Async Tests**: Tests for async functionality using `@pytest.mark.asyncio`
+
+#### VS Code Integration
+
+The project includes VS Code configuration for:
+
+- **Testing Panel**: Run and debug tests directly in the editor
+- **Coverage Display**: Visual coverage indicators in the gutter
+- **Debug Configurations**: Debug tests with breakpoints
+- **Tasks**: Quick access to common testing operations
+
+Install the recommended extensions and reload VS Code to enable testing features.
+
 ## 📚 Documentation
 
 Documentation is available in the source code through comprehensive docstrings and type hints. Key documentation
 sources:
 
 - **README.md**: This file - installation, usage, and examples
-- **example.py**: Complete usage examples
+- **Usage Examples section**: Complete usage examples
 - **Source code**: Comprehensive docstrings and type hints
 - **Tests**: Usage examples in the test files
 
