@@ -118,8 +118,7 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
             self._set_connection_state("connecting")
             self.logger.info(f"Connecting to {self.host}:{self.port}")
 
-            # Call base class connect to validate config
-            await super().connect()
+            # Implementation of abstract connect method
 
             # Single connection mode
             self.client = paramiko.SSHClient()
@@ -225,6 +224,8 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
 
         # Use the base class's generic command infrastructure
         def send_func(cmd: str) -> None:
+            if not self.shell:
+                raise ConnectionError("SSH shell not available")
             self.shell.send(cmd + "\n")
             self.logger.debug(f"Sending command via SSH: {cmd}")
 

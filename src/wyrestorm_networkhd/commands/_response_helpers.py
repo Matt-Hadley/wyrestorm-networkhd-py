@@ -111,6 +111,7 @@ def parse_json_response(response: str, prefix: str) -> dict[str, Any]:
 
     json_part = response.split(prefix)[1].strip()
     try:
-        return json.loads(json_part)
+        parsed_data: dict[str, Any] = json.loads(json_part)
+        return parsed_data
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in response: {e}") from e

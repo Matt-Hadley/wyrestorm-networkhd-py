@@ -37,7 +37,7 @@ def event_loop():
 @pytest.fixture
 async def async_queue() -> AsyncGenerator[asyncio.Queue, None]:
     """Create an async queue for testing."""
-    queue = asyncio.Queue()
+    queue: asyncio.Queue[str] = asyncio.Queue()
     yield queue
 
     # Clean up any remaining items

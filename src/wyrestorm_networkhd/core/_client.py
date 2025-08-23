@@ -4,6 +4,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from enum import Enum
+from typing import Any
 
 from ..logging_config import get_logger
 from ..models.api_notifications import (
@@ -140,7 +141,7 @@ class _BaseNetworkHDClient(ABC):
         # Connection health monitoring (generic, configurable interval)
         self._last_heartbeat: float | None = None
         self._heartbeat_interval: float = heartbeat_interval
-        self._connection_metrics = {
+        self._connection_metrics: dict[str, Any] = {
             "commands_sent": 0,
             "commands_failed": 0,
             "notifications_received": 0,
@@ -178,7 +179,7 @@ class _BaseNetworkHDClient(ABC):
         pass
 
     @abstractmethod
-    async def send_command(self, command: str, response_timeout: float | None = None) -> str:
+    async def send_command(self, command: str, response_timeout: float) -> str:
         """Send a command to the device and get the response.
 
         Args:

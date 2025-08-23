@@ -3,7 +3,7 @@
 import asyncio
 import contextlib
 
-import async_pyserial
+import async_pyserial  # type: ignore[import-untyped]
 
 from ..exceptions import ConnectionError
 from ..logging_config import get_logger
@@ -98,8 +98,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
             self._set_connection_state("connecting")
             self.logger.info(f"Connecting to {self.port} at {self.baudrate} baud")
 
-            # Call base class connect to validate config
-            await super().connect()
+            # Implementation of abstract connect method
 
             # Create async serial connection
             self.serial = async_pyserial.SerialPort(
@@ -156,7 +155,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
         connected = self.serial is not None and self.serial.is_open
 
         if not connected and self._connection_state == "connected":
-            self._set_connection_state("disconnected")
+            self._set_connection_state("disconnected")  # type: ignore[unreachable]
 
         return connected
 
@@ -179,6 +178,8 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
 
         # Use the base class's generic command infrastructure
         def send_func(cmd: str) -> None:
+            if not self.serial:
+                raise ConnectionError("RS232 serial port not available")
             # Add carriage return and line feed for RS232
             message = cmd + "\r\n"
             asyncio.create_task(self.serial.write(message.encode()))

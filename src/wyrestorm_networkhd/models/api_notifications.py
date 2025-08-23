@@ -1,7 +1,7 @@
 """NetworkHD API notification data models."""
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal, cast
 
 # =============================================================
 # 12.2 Endpoint Notifications
@@ -269,7 +269,9 @@ class NotificationSerialinfo:
         # Remove leading CR/LF from data
         serial_data = data_part.lstrip("\r\n")
 
-        return cls(device=device, data_format=data_format, data_length=data_length, serial_data=serial_data)
+        # Cast data_format to the correct Literal type after validation
+        validated_format = cast(Literal["hex", "ascii"], data_format)
+        return cls(device=device, data_format=validated_format, data_length=data_length, serial_data=serial_data)
 
 
 @dataclass
@@ -278,7 +280,7 @@ class NotificationVideo:
 
     status: Literal["lost", "found"]
     device: str
-    source_device: str = None  # Only present for RX found notifications
+    source_device: str | None = None  # Only present for RX found notifications
 
     @classmethod
     def parse(cls, notification: str) -> "NotificationVideo":
@@ -334,7 +336,9 @@ class NotificationVideo:
         if len(parts) > 4:
             source_device = parts[4]
 
-        return cls(status=status, device=device, source_device=source_device)
+        # Cast status to the correct Literal type after validation
+        validated_status = cast(Literal["lost", "found"], status)
+        return cls(status=validated_status, device=device, source_device=source_device)
 
 
 @dataclass
@@ -386,14 +390,16 @@ class NotificationSink:
         if status not in ["lost", "found"]:
             raise ValueError(f"Invalid sink power status: {status}")
 
-        return cls(status=status, device=device)
+        # Cast status to the correct Literal type after validation
+        validated_status = cast(Literal["lost", "found"], status)
+        return cls(status=validated_status, device=device)
 
 
 class NotificationParser:
     """Utility class to parse any NetworkHD API notification"""
 
     # Static mapping of notification prefixes to type info
-    _NOTIFICATION_MAPPINGS = {
+    _NOTIFICATION_MAPPINGS: dict[str, dict[str, Any]] = {
         "notify endpoint": {
             "type": "endpoint",
             "class": NotificationEndpoint,
@@ -437,7 +443,7 @@ class NotificationParser:
 
         for prefix, info in NotificationParser._NOTIFICATION_MAPPINGS.items():
             if notification.startswith(prefix):
-                return info["type"]
+                return str(info["type"])
 
         raise ValueError(f"Unknown notification type: {notification}")
 
@@ -467,7 +473,9 @@ class NotificationParser:
 
         for prefix, info in NotificationParser._NOTIFICATION_MAPPINGS.items():
             if notification.startswith(prefix):
-                return info["class"].parse(notification)
+                notification_class = info["class"]
+                # Type checker can't know the specific class type from the dict
+                return notification_class.parse(notification)  # type: ignore[no-any-return]
 
         raise ValueError(f"Unknown notification type: {notification}")
 

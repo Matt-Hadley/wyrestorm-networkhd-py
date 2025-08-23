@@ -1,9 +1,12 @@
 """NetworkHD API query response data models."""
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, TypeVar, cast
 
 from ..exceptions import DeviceNotFoundError
+
+# TypeVar for BaseMatrix generic return type
+T = TypeVar("T", bound="BaseMatrix")
 
 # =============================================================================
 # Helper Functions for Common Parsing Patterns
@@ -137,6 +140,8 @@ class Version:
             raise ValueError(f"Could not find API version in response: {response}")
         if web_version is None:
             raise ValueError(f"Could not find System version in response: {response}")
+        if core_version is None:
+            raise ValueError(f"Could not find core version in response: {response}")
 
         return cls(api_version=api_version, web_version=web_version, core_version=core_version)
 
@@ -332,7 +337,7 @@ class BaseMatrix:
     assignments: list[MatrixAssignment]
 
     @classmethod
-    def parse(cls, response: str) -> "BaseMatrix":
+    def parse(cls: type[T], response: str) -> T:
         """Parse 'matrix get' response (and similar variants) with standard format
 
         Args:
@@ -494,7 +499,10 @@ class MatrixInfrared2:
 
         for line in data_lines:
             device, mode, target_device = _parse_device_mode_assignment(line)
-            assignments.append(InfraredReceiverAssignment(device=device, mode=mode, target_device=target_device))
+            validated_mode = cast(Literal["single", "api", "all", "null"], mode)
+            assignments.append(
+                InfraredReceiverAssignment(device=device, mode=validated_mode, target_device=target_device)
+            )
 
         return cls(assignments=assignments)
 
@@ -541,7 +549,8 @@ class MatrixSerial2:
 
         for line in data_lines:
             device, mode, target_device = _parse_device_mode_assignment(line)
-            assignments.append(SerialPortAssignment(device=device, mode=mode, target_device=target_device))
+            validated_mode = cast(Literal["single", "api", "all", "null"], mode)
+            assignments.append(SerialPortAssignment(device=device, mode=validated_mode, target_device=target_device))
 
         return cls(assignments=assignments)
 
@@ -623,7 +632,7 @@ class VideoWallLogicalScreenList:
             Response example: Video wall information:\nOfficeVW-Combined_TopTwo source1\nRow 1: display1 display2\nOfficeVW-AllCombined_AllDisplays source2\nRow 1: display1 display2 display3\nRow 2: display4 display5 display6
         """
         data_lines = _skip_to_header(response, "Video wall information:")
-        screens = []
+        screens: list[VideoWallLogicalScreen] = []
         current_screen = None
         current_rows = []
 
@@ -793,8 +802,14 @@ class MultiviewTile:
         if len(coords) != 4:
             raise ValueError(f"Invalid tile coordinates: {parts[1]}")
 
+        validated_scaling = cast(Literal["fit", "stretch"], scaling)
         return cls(
-            tx=tx, x=int(coords[0]), y=int(coords[1]), width=int(coords[2]), height=int(coords[3]), scaling=scaling
+            tx=tx,
+            x=int(coords[0]),
+            y=int(coords[1]),
+            width=int(coords[2]),
+            height=int(coords[3]),
+            scaling=validated_scaling,
         )
 
 
@@ -855,6 +870,7 @@ class CustomMultiviewLayoutList:
                 except ValueError as e:
                     raise ValueError(f"Invalid tile configuration in line '{line}': {e}") from e
 
-            configurations.append(CustomMultiviewLayout(rx=rx, mode=mode, tiles=tiles))
+            validated_mode = cast(Literal["tile", "overlay"], mode)
+            configurations.append(CustomMultiviewLayout(rx=rx, mode=validated_mode, tiles=tiles))
 
         return cls(configurations=configurations)
