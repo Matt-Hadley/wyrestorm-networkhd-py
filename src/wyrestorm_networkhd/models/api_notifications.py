@@ -11,21 +11,21 @@ from typing import Literal
 
 
 @dataclass
-class EndpointOnlineStatusNotification:
+class NotificationEndpoint:
     """Endpoint online status notification"""
 
     online: bool
     device: str
 
     @classmethod
-    def parse(cls, notification: str) -> "EndpointOnlineStatusNotification":
-        """Parse endpoint status notification
+    def parse(cls, notification: str) -> "NotificationEndpoint":
+        """Parse endpoint online status notification
 
         Args:
             notification: The notification string to parse
 
         Returns:
-            EndpointOnlineStatusNotification: Parsed notification object
+            NotificationEndpoint: Parsed notification object
 
         Raises:
             ValueError: If notification format is invalid
@@ -65,21 +65,21 @@ class EndpointOnlineStatusNotification:
 
 
 @dataclass
-class EndpointCECDataNotification:
+class NotificationCecinfo:
     """Endpoint CEC data notification"""
 
     device: str
     cec_data: str
 
     @classmethod
-    def parse(cls, notification: str) -> "EndpointCECDataNotification":
-        """Parse CEC data notification
+    def parse(cls, notification: str) -> "NotificationCecinfo":
+        """Parse endpoint CEC data notification
 
         Args:
             notification: The notification string to parse
 
         Returns:
-            EndpointCECDataNotification: Parsed notification object
+            NotificationCecinfo: Parsed notification object
 
         Raises:
             ValueError: If notification format is invalid
@@ -121,21 +121,21 @@ class EndpointCECDataNotification:
 
 
 @dataclass
-class EndpointInfraredDataNotification:
+class NotificationIrinfo:
     """Endpoint Infrared data notification"""
 
     device: str
     ir_data: str
 
     @classmethod
-    def parse(cls, notification: str) -> "EndpointInfraredDataNotification":
-        """Parse infrared data notification
+    def parse(cls, notification: str) -> "NotificationIrinfo":
+        """Parse endpoint infrared data notification
 
         Args:
             notification: The notification string to parse
 
         Returns:
-            EndpointInfraredDataNotification: Parsed notification object
+            NotificationIrinfo: Parsed notification object
 
         Raises:
             ValueError: If notification format is invalid
@@ -184,7 +184,7 @@ class EndpointInfraredDataNotification:
 
 
 @dataclass
-class EndpointRS232DataNotification:
+class NotificationSerialinfo:
     """Endpoint RS-232 data notification"""
 
     device: str
@@ -193,14 +193,14 @@ class EndpointRS232DataNotification:
     serial_data: str
 
     @classmethod
-    def parse(cls, notification: str) -> "EndpointRS232DataNotification":
-        """Parse RS-232 data notification
+    def parse(cls, notification: str) -> "NotificationSerialinfo":
+        """Parse endpoint RS-232 data notification
 
         Args:
             notification: The notification string to parse
 
         Returns:
-            EndpointRS232DataNotification: Parsed notification object
+            NotificationSerialinfo: Parsed notification object
 
         Raises:
             ValueError: If notification format is invalid
@@ -273,22 +273,22 @@ class EndpointRS232DataNotification:
 
 
 @dataclass
-class EndpointVideoInputStatusNotification:
-    """Endpoint video input status notification"""
+class NotificationVideo:
+    """Video input status notification"""
 
     status: Literal["lost", "found"]
     device: str
     source_device: str = None  # Only present for RX found notifications
 
     @classmethod
-    def parse(cls, notification: str) -> "EndpointVideoInputStatusNotification":
-        """Parse video status notification
+    def parse(cls, notification: str) -> "NotificationVideo":
+        """Parse endpoint video status notification
 
         Args:
             notification: The notification string to parse
 
         Returns:
-            EndpointVideoInputStatusNotification: Parsed notification object
+            NotificationVideo: Parsed notification object
 
         Raises:
             ValueError: If notification format is invalid
@@ -338,21 +338,21 @@ class EndpointVideoInputStatusNotification:
 
 
 @dataclass
-class EndpointSinkPowerStatusNotification:
-    """Endpoint sink power status notification"""
+class NotificationSink:
+    """Sink power status notification"""
 
     status: Literal["lost", "found"]
     device: str
 
     @classmethod
-    def parse(cls, notification: str) -> "EndpointSinkPowerStatusNotification":
+    def parse(cls, notification: str) -> "NotificationSink":
         """Parse sink power status notification
 
         Args:
             notification: The notification string to parse
 
         Returns:
-            EndpointSinkPowerStatusNotification: Parsed notification object
+            NotificationSink: Parsed notification object
 
         Raises:
             ValueError: If notification format is invalid
@@ -396,27 +396,27 @@ class NotificationParser:
     _NOTIFICATION_MAPPINGS = {
         "notify endpoint": {
             "type": "endpoint",
-            "class": EndpointOnlineStatusNotification,
+            "class": NotificationEndpoint,
         },
         "notify cecinfo": {
-            "type": "cec",
-            "class": EndpointCECDataNotification,
+            "type": "cecinfo",
+            "class": NotificationCecinfo,
         },
         "notify irinfo": {
-            "type": "infrared",
-            "class": EndpointInfraredDataNotification,
+            "type": "irinfo",
+            "class": NotificationIrinfo,
         },
         "notify serialinfo": {
-            "type": "rs232",
-            "class": EndpointRS232DataNotification,
+            "type": "serialinfo",
+            "class": NotificationSerialinfo,
         },
         "notify video": {
-            "type": "video_input",
-            "class": EndpointVideoInputStatusNotification,
+            "type": "video",
+            "class": NotificationVideo,
         },
         "notify sink": {
-            "type": "sink_power",
-            "class": EndpointSinkPowerStatusNotification,
+            "type": "sink",
+            "class": NotificationSink,
         },
     }
 
@@ -445,12 +445,12 @@ class NotificationParser:
     def parse_notification(
         notification: str,
     ) -> (
-        EndpointOnlineStatusNotification
-        | EndpointCECDataNotification
-        | EndpointInfraredDataNotification
-        | EndpointRS232DataNotification
-        | EndpointVideoInputStatusNotification
-        | EndpointSinkPowerStatusNotification
+        NotificationEndpoint
+        | NotificationCecinfo
+        | NotificationIrinfo
+        | NotificationSerialinfo
+        | NotificationVideo
+        | NotificationSink
     ):
         """Parse any NetworkHD API notification and return the appropriate notification object
 
