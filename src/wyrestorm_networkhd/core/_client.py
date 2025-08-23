@@ -372,22 +372,29 @@ class _BaseNetworkHDClient(ABC):
         """Update connection state and error information.
 
         Args:
-            state: New connection state.
+            state: New connection state string.
             error: Optional error message.
         """
         old_state = self._connection_state
-        self._connection_state = state
+
+        # Convert string state to enum value using the enum's value lookup
+        try:
+            self._connection_state = _ConnectionState(state)
+        except ValueError:
+            self.logger.warning(f"Unknown connection state: {state}")
+            self._connection_state = _ConnectionState.ERROR
+
         self._connection_error = error
 
-        if state != old_state:
-            self.logger.info(f"Connection state changed: {old_state.value} -> {state.value}")
+        if self._connection_state != old_state:
+            self.logger.info(f"Connection state changed: {old_state.value} -> {self._connection_state.value}")
             if error:
                 self.logger.error(f"Connection error: {error}")
 
         # Update circuit breaker state
-        if state == "error":
+        if self._connection_state == _ConnectionState.ERROR:
             self._record_failure()
-        elif state == "connected":
+        elif self._connection_state == _ConnectionState.CONNECTED:
             self._reset_circuit()
 
     # ============================================================================
