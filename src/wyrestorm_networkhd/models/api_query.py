@@ -127,8 +127,18 @@ class Version:
 
         Notes:
             Searches through the response for version patterns, ignoring command echoes and other noise.
-            Response format: API version: v<api><CR><LF>System version: v<web>(v<core>)
-            Response example: API version: v1.21\nSystem version: v8.3.1(v8.3.8)
+
+            Underlying NetworkHD API raw response format:
+                ```
+                API version: v<api>
+                System version: v<web>(v<core>)
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                API version: v1.21
+                System version: v8.3.1(v8.3.8)
+                ```
         """
         lines = response.strip().split("\n")
 
@@ -218,9 +228,16 @@ class IpSetting:
             ValueError: If response format is invalid or missing required settings
 
         Notes:
-            Response format: ipsetting is: ip4addr <ipv4> netmask <nm> gateway <gw>
-            Response example: ipsetting is: ip4addr 169.254.1.1 netmask 255.255.0.0 gateway 169.254.1.254
-            Response example: ipsetting2 is: ip4addr 169.254.1.1 netmask 255.255.0.0 gateway 169.254.1.254
+            Underlying NetworkHD API raw response format:
+                ```
+                ipsetting is: ip4addr <ipv4> netmask <nm> gateway <gw>
+                ```
+
+            Underlying NetworkHD API raw response examples:
+                ```
+                ipsetting is: ip4addr 169.254.1.1 netmask 255.255.0.0 gateway 169.254.1.254
+                ipsetting2 is: ip4addr 169.254.1.1 netmask 255.255.0.0 gateway 169.254.1.254
+                ```
         """
         # Handle both ipsetting and ipsetting2 responses
         if "ipsetting is:" in response:
@@ -271,9 +288,20 @@ class EndpointAliasHostname:
             ValueError: If response format is invalid
 
         Notes:
-            Response format: <hostname>'s alias is <alias|null>
-            Response example: NHD-400-TX-E4CE02104E55's alias is source1
-            Error format: "<device_name> does not exist."
+            Underlying NetworkHD API raw response format:
+                ```
+                <hostname>'s alias is <alias|null>
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                NHD-400-TX-E4CE02104E55's alias is source1
+                ```
+
+            Underlying NetworkHD API raw response erorr:
+                ```
+                "<device_name> does not exist."
+                ```
         """
 
         # Check for "does not exist" error
@@ -306,8 +334,18 @@ class EndpointAliasHostname:
             list[EndpointAliasHostname]: List of parsed alias/hostname information objects
 
         Notes:
-            Response format: <hostname1>'s alias is <alias1|null><CR><LF><hostname2>'s alias is <alias2|null><CR><LF>...
-            Response example: NHD-400-TX-E4CE02104E55's alias is source1\nNHD-400-TX-E4CE02104E56's alias is source2\nNHD-400-RX-E4CE02104A57's alias is display1\nNHD-400-RX-E4CE02104A58's alias is null
+            Underlying NetworkHD API raw response format:
+                ```
+                Multiple lines, each with format <hostname>'s alias is <alias|null>
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                NHD-400-TX-E4CE02104E55's alias is source1
+                NHD-400-TX-E4CE02104E56's alias is source2
+                NHD-400-RX-E4CE02104A57's alias is display1
+                NHD-400-RX-E4CE02104A58's alias is null
+                ```
         """
         names = []
         for line in response.strip().split("\n"):
@@ -351,9 +389,32 @@ class BaseMatrix:
 
         Notes:
             Ignores everything before the matrix information header and parses only the actual matrix data.
-            Response format: matrix [type] information:<CR><LF><TXn|NULL> <RX1><CR><LF><TXn|NULL> <RX2> … <CR><LF><TXn|NULL> <RXn>
-            Response example: matrix information:\nSource1 Display1\nSource1 Display2\nSource2 Display3\nNULL Display4
-            Response example: matrix video information:\nSource1 Display1\nSource1 Display2\nSource2 Display3\nNULL Display4
+
+            Underlying NetworkHD API raw response format:
+                ```
+                matrix [type] information:
+                <TXn|NULL> <RX1>
+                <TXn|NULL> <RX2>
+                ...
+                <TXn|NULL> <RXn>
+                ```
+
+            Underlying NetworkHD API raw response examples:
+                ```
+                matrix information:
+                Source1 Display1
+                Source1 Display2
+                Source2 Display3
+                NULL Display4
+                ```
+
+                ```
+                matrix video information:
+                Source1 Display1
+                Source1 Display2
+                Source2 Display3
+                NULL Display4
+                ```
         """
         data_lines = _skip_to_header(response, "information:")
         assignments = []
@@ -429,8 +490,21 @@ class MatrixAudio3:
 
         Notes:
             Ignores everything before the 'matrix audio3 information:' line and parses only the actual assignment data.
-            Response format: matrix audio3 information:<CR><LF><RX1><CR><LF><TX1>
-            Response example: matrix audio3 information:\nDisplay1 Source1\nDisplay2 Source3\nDisplay5 Source2
+
+            Underlying NetworkHD API raw response format:
+                ```
+                matrix audio3 information:
+                <RX1>
+                <TX1>
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                matrix audio3 information:
+                Display1 Source1
+                Display2 Source3
+                Display5 Source2
+                ```
         """
         data_lines = _skip_to_header(response, "information:")
         assignments = []
@@ -491,8 +565,23 @@ class MatrixInfrared2:
 
         Notes:
             Ignores everything before the 'matrix infrared2 information:' line and parses only the actual assignment data.
-            Response format: matrix infrared2 information:<CR><LF><TX1|RX1> <mode> (<TXn|RXn>)<CR><LF><TX2|RX2> <mode> (<TXn|RXn>) …
-            Response example: matrix infrared2 information:\nsource1 single display1\ndisplay1 api\nsource2 api\ndisplay2 null
+
+            Underlying NetworkHD API raw response format:
+                ```
+                matrix infrared2 information:
+                <TX1|RX1> <mode> (<TXn|RXn>)
+                <TX2|RX2> <mode> (<TXn|RXn>)
+                ...
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                matrix infrared2 information:
+                source1 single display1
+                display1 api
+                source2 api
+                display2 null
+                ```
         """
         data_lines = _skip_to_header(response, "information:")
         assignments = []
@@ -541,8 +630,23 @@ class MatrixSerial2:
 
         Notes:
             Ignores everything before the 'matrix serial2 information:' line and parses only the actual assignment data.
-            Response format: matrix serial2 information:<CR><LF><TX1|RX1> <mode> (<TXn|RXn>)<CR><LF><TX2|RX2> <mode> (<TXn|RXn>) …
-            Response example: matrix serial2 information:\nsource1 single display1\ndisplay1 api\nsource2 api\ndisplay2 null
+
+            Underlying NetworkHD API raw response format:
+                ```
+                matrix serial2 information:
+                <TX1|RX1> <mode> (<TXn|RXn>)
+                <TX2|RX2> <mode> (<TXn|RXn>)
+                ...
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                matrix serial2 information:
+                source1 single display1
+                display1 api
+                source2 api
+                display2 null
+                ```
         """
         data_lines = _skip_to_header(response, "information:")
         assignments = []
@@ -588,8 +692,17 @@ class VideoWallSceneList:
             ValueError: If no valid scenes are found in response
 
         Notes:
-            Response format: scene list:<CR><LF><videowall1>-<scene1> <videowall1>-<scene2> … <videowalln>-<scenen>
-            Response example: scene list:\nOfficeVW-Splitmode OfficeVW-Combined
+            Underlying NetworkHD API raw response format:
+                ```
+                scene list:
+                <videowall1>-<scene1> <videowall1>-<scene2> ... <videowalln>-<scenen>
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                scene list:
+                OfficeVW-Splitmode OfficeVW-Combined
+                ```
         """
         scene_tuples = _parse_scene_items(response, "scene list:")
 
@@ -628,8 +741,24 @@ class VideoWallLogicalScreenList:
             VideoWallLogicalScreenList: Parsed video wall logical screen information object
 
         Notes:
-            Response format: Video wall information:<CR><LF><videowall1>-<scene1>_<Lscreen1> <TX><CR><LF>Row 1: <RX1> <RX2><Row 2: <RX3> <RX4> …
-            Response example: Video wall information:\nOfficeVW-Combined_TopTwo source1\nRow 1: display1 display2\nOfficeVW-AllCombined_AllDisplays source2\nRow 1: display1 display2 display3\nRow 2: display4 display5 display6
+            Underlying NetworkHD API raw response format:
+                ```
+                Video wall information:
+                <videowall1>-<scene1>_<Lscreen1> <TX>
+                Row 1: <RX1> <RX2>
+                Row 2: <RX3> <RX4>
+                ...
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                Video wall information:
+                OfficeVW-Combined_TopTwo source1
+                Row 1: display1 display2
+                OfficeVW-AllCombined_AllDisplays source2
+                Row 1: display1 display2 display3
+                Row 2: display4 display5 display6
+                ```
         """
         data_lines = _skip_to_header(response, "Video wall information:")
         screens: list[VideoWallLogicalScreen] = []
@@ -698,8 +827,17 @@ class VideowallWithinWallSceneList:
             VideowallWithinWallSceneList: Parsed videowall within wall scene list information object
 
         Notes:
-            Response format: wscene2 list:<CR><LF><videowall1>-<wscene1> <videowall1>-<wscene2> … <videowalln>-<wscenen>
-            Response example: wscene2 list:\nOfficeVW-windowscene1 OfficeVW-windowscene2
+            Underlying NetworkHD API raw response format:
+                ```
+                wscene2 list:
+                <videowall1>-<wscene1> <videowall1>-<wscene2> ... <videowalln>-<wscenen>
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                wscene2 list:
+                OfficeVW-windowscene1 OfficeVW-windowscene2
+                ```
         """
         scene_tuples = _parse_scene_items(response, "wscene2 list:")
         scenes = [VideoWallScene(videowall=vw, scene=sc) for vw, sc in scene_tuples]
@@ -740,8 +878,21 @@ class PresetMultiviewLayoutList:
 
         Notes:
             Ignores everything before the 'mscene list:' line and parses only the actual layout data.
-            Response format: mscene list:<CR><LF><RX> <lname1> <lname2> … <lnamen><CR>LF><RXn> <lname3> <lname4> …
-            Response example: mscene list:\ndisplay5 gridlayout piplayout\ndisplay6 pip2layout\ndisplay7 grid5layout grid6layout
+
+            Underlying NetworkHD API raw response format:
+                ```
+                mscene list:
+                <RX> <lname1> <lname2> ... <lnamen>
+                <RXn> <lname3> <lname4> ...
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                mscene list:
+                display5 gridlayout piplayout
+                display6 pip2layout
+                display7 grid5layout grid6layout
+                ```
         """
         data_lines = _skip_to_header(response, "mscene list:")
         layouts = []
@@ -788,8 +939,15 @@ class MultiviewTile:
             ValueError: If tile configuration format is invalid
 
         Notes:
-            Response format: <tx>:<x>_<y>_<width>_<height>:<scaling>
-            Response example: source1:0_0_960_540:fit
+            Underlying NetworkHD API raw response format:
+                ```
+                <tx>:<x>_<y>_<width>_<height>:<scaling>
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                source1:0_0_960_540:fit
+                ```
         """
         parts = tile_config.split(":")
         if len(parts) != 3:
@@ -842,8 +1000,18 @@ class CustomMultiviewLayoutList:
             ValueError: If multiview layout line format is invalid or tile configuration is invalid
 
         Notes:
-            Response format: mview information:<CR><LF><RX1> [tile|overlay] <TX1>:<X1>_Y1>_<W1>_<H1>:[fit|stretch] <TX2>:<X2>_Y2>_<W2>_<H2>:[fit|stretch] …
-            Response example: mview information:\ndisplay10 tile source1:0_0_960_540:fit source2:960_0_960_540:fit source3:0_540_960_540:fit source4:960_540_960_540:fit\ndisplay11 overlay source1:100_50_256_144:fit source2:0_0_1920_1080:fit
+            Underlying NetworkHD API raw response format:
+                ```
+                mview information:
+                <RX1> [tile|overlay] <TX1>:<X1>_Y1>_<W1>_<H1>:[fit|stretch] <TX2>:<X2>_Y2>_<W2>_<H2>:[fit|stretch] ...
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                mview information:
+                display10 tile source1:0_0_960_540:fit source2:960_0_960_540:fit source3:0_540_960_540:fit source4:960_540_960_540:fit
+                display11 overlay source1:100_50_256_144:fit source2:0_0_1920_1080:fit
+                ```
         """
         data_lines = _skip_to_header(response, "information:")
         configurations = []

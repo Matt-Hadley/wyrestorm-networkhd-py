@@ -19,6 +19,7 @@ PYTEST := $(shell if [ -x "$(VENV_BIN)/pytest" ]; then echo "$(VENV_BIN)/pytest"
 PRE_COMMIT := $(shell if [ -x "$(VENV_BIN)/pre-commit" ]; then echo "$(VENV_BIN)/pre-commit"; else echo "pre-commit"; fi)
 VULTURE := $(shell if [ -x "$(VENV_BIN)/vulture" ]; then echo "$(VENV_BIN)/vulture"; else echo "vulture"; fi)
 PYUPGRADE := $(shell if [ -x "$(VENV_BIN)/pyupgrade" ]; then echo "$(VENV_BIN)/pyupgrade"; else echo "pyupgrade"; fi)
+SPHINX := $(shell if [ -x "$(VENV_BIN)/sphinx-build" ]; then echo "$(VENV_BIN)/sphinx-build"; else echo "sphinx-build"; fi)
 
 # Better Python detection
 PYTHON3 := $(shell command -v python3 2> /dev/null || echo "python3")
@@ -55,10 +56,11 @@ endif
         lint type-check type-check-strict \
         security-check security-audit code-quality check \
         build release \
-        clean clean-all clean-build clean-pyc clean-test clean-cache \
+        clean clean-all clean-build clean-pyc clean-test clean-cache clean-docs \
         health-check check-project-structure check-versions show-deps \
         setup-pre-commit pre-commit validate-config ensure-venv \
-        dev-workflow docker-build docker-test
+        dev-workflow docker-build docker-test \
+        docs docs-serve
 
 # =============================================================================
 # Help Target
@@ -113,6 +115,11 @@ help: ## Show this help message
 	@echo "  show-deps        - Show installed dependencies"
 	@echo "  check-versions   - Check Python and package versions"
 	@echo "  pre-commit       - Setup and run pre-commit hooks"
+	@echo ""
+	@echo "$(YELLOW)📚 Documentation:$(NC)"
+	@echo "  docs             - Build MkDocs documentation with all extensions"
+	@echo "  docs-serve       - Serve documentation locally with live reload"
+	@echo "  clean-docs       - Clean documentation build artifacts"
 	@echo ""
 	@echo "$(BLUE)🐳 Docker:$(NC)"
 	@echo "  docker-build     - Build Docker image"
@@ -290,7 +297,7 @@ build: clean-build ## Build wheel only and validate package
 # =============================================================================
 # Cleanup
 # =============================================================================
-clean: clean-build clean-pyc clean-test clean-cache ## Remove all build artifacts
+clean: clean-build clean-pyc clean-test clean-cache clean-docs ## Remove all build artifacts
 
 clean-all: clean ## Remove everything including venv
 	$(ECHO) "$(YELLOW)Removing virtual environment...$(NC)"
@@ -343,6 +350,39 @@ pre-commit: setup-pre-commit ## Setup, update and run pre-commit hooks
 	$(Q)pre-commit autoupdate
 	$(Q)pre-commit run --all-files
 	@echo "$(GREEN)✓$(NC) Pre-commit completed"
+
+# =============================================================================
+# Documentation
+# =============================================================================
+DOCS_BUILD_DIR := site
+MKDOCS := $(shell if [ -x "$(VENV_BIN)/mkdocs" ]; then echo "$(VENV_BIN)/mkdocs"; else echo "mkdocs"; fi)
+
+docs: ## Build MkDocs documentation with all optional dependencies
+	$(ECHO) "$(YELLOW)Building documentation...$(NC)"
+	@if ! command -v $(MKDOCS) >/dev/null 2>&1; then \
+		echo "$(YELLOW)⚠ mkdocs not found - installing docs dependencies...$(NC)"; \
+		$(PIP) install -e ".[docs]"; \
+	fi
+	@echo "$(YELLOW)Installing all optional dependencies for complete API documentation...$(NC)"
+	$(Q)$(PIP) install -e ".[docs,rs232]" --quiet
+	@echo "$(YELLOW)Building MkDocs site...$(NC)"
+	$(Q)$(MKDOCS) build --clean
+	@echo "$(GREEN)✓$(NC) Documentation built in $(DOCS_BUILD_DIR)/"
+	@echo "$(YELLOW)Open:$(NC) file://$(PWD)/$(DOCS_BUILD_DIR)/index.html"
+
+docs-serve: ## Serve documentation locally with live reload
+	$(ECHO) "$(YELLOW)Starting MkDocs development server...$(NC)"
+	@if ! command -v $(MKDOCS) >/dev/null 2>&1; then \
+		echo "$(YELLOW)⚠ mkdocs not found - installing docs dependencies...$(NC)"; \
+		$(PIP) install -e ".[docs]"; \
+	fi
+	$(Q)$(PIP) install -e ".[docs,rs232]" --quiet
+	$(Q)$(MKDOCS) serve
+
+clean-docs: ## Clean documentation build artifacts
+	$(ECHO) "$(YELLOW)Cleaning documentation build...$(NC)"
+	$(Q)rm -rf $(DOCS_BUILD_DIR)/
+	@echo "$(GREEN)✓$(NC) Documentation build cleaned"
 
 # =============================================================================
 # Docker

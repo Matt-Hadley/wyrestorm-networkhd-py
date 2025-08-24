@@ -61,12 +61,20 @@ dev = [
 
 rs232 = ["async-pyserial>=0.1.0"]
 
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.26.0",
+    "mkdocs-include-markdown-plugin>=6.2.0",
+    "mkdocs-macros-plugin>=1.3.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py"
 Repository = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py.git"
 Issues = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py/issues"
-Documentation = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py#readme"
-Changelog = "https://github.com/Matt-Hadley/wyrestorm-networkhd-py/releases"
+Documentation = "https://matt-hadley.github.io/wyrestorm-networkhd-py/"
+Changelog = "https://matt-hadley.github.io/wyrestorm-networkhd-py/changelog/"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

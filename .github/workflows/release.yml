@@ -12,6 +12,7 @@ permissions:
     id-token: write # For attestations
     attestations: write
     checks: write
+    pages: write # For GitHub Pages
 
 concurrency:
     group: release-${{ github.ref }}
@@ -109,3 +110,47 @@ jobs:
               with:
                   packages-dir: dist/
                   attestations: true
+
+    publish-docs:
+        name: Publish Documentation
+        needs: release-please
+        if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+
+            - name: Setup environment
+              uses: ./.github/actions/setup-environment
+
+            - name: Cache dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cache/pip
+                      .venv
+                  key: ${{ runner.os }}-python-docs-${{ hashFiles('pyproject.toml') }}
+                  restore-keys: |
+                      ${{ runner.os }}-python-docs-
+                      ${{ runner.os }}-python-
+
+            - name: Build documentation
+              run: make docs
+
+            - name: Setup Pages
+              uses: actions/configure-pages@v5
+
+            - name: Upload documentation artifacts
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: ./site
+
+            - name: Deploy to GitHub Pages
+              id: deployment
+              uses: actions/deploy-pages@v4

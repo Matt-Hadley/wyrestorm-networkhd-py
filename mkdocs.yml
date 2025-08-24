@@ -1,0 +1,144 @@
+site_name: WyreStorm NetworkHD Python Client Documentation
+site_description:
+    Python client library for WyreStorm NetworkHD devices, providing a high-level interface for device control and
+    monitoring.
+site_url: https://matt-hadley.github.io/wyrestorm-networkhd-py/
+site_author: Matt-Hadley
+
+repo_name: Matt-Hadley/wyrestorm-networkhd-py
+repo_url: https://github.com/Matt-Hadley/wyrestorm-networkhd-py
+edit_uri: edit/main/
+
+theme:
+    name: material
+    features:
+        - content.code.copy
+        - content.code.select
+        - navigation.footer
+        - navigation.indexes
+        - navigation.sections
+        - navigation.tabs
+        - navigation.tabs.sticky
+        - navigation.top
+        - search.highlight
+        - search.share
+        - search.suggest
+        - toc.follow
+    palette:
+        - media: "(prefers-color-scheme: light)"
+          scheme: default
+          primary: blue
+          accent: blue
+          toggle:
+              icon: material/brightness-7
+              name: Switch to dark mode
+        - media: "(prefers-color-scheme: dark)"
+          scheme: slate
+          primary: blue
+          accent: blue
+          toggle:
+              icon: material/brightness-4
+              name: Switch to light mode
+
+nav:
+    - Home:
+          - Overview: index.md
+
+          - Security: security.md
+          - License: license.md
+    - API Reference:
+          - Core Components: reference/core.md
+          - Commands: reference/commands.md
+          - Models: reference/models.md
+          - Exceptions: reference/exceptions.md
+    - Resources: resources.md
+    - Contributing: contributing.md
+    - Changelog: changelog.md
+
+plugins:
+    - search:
+          separator: '[\s\u200b\-_,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+    - include-markdown:
+          preserve_includer_indent: false
+          dedent: false
+          trailing_newlines: false
+          comments: false
+          rewrite_relative_urls: false
+    - macros:
+          module_name: docs/macros
+    - mkdocstrings:
+          handlers:
+              python:
+                  paths: [src]
+                  options:
+                      # Documentation generation options
+                      docstring_style: google
+                      docstring_options:
+                          ignore_init_summary: true
+                      merge_init_into_class: true
+                      show_submodules: false
+
+                      # Signature options
+                      show_signature_annotations: true
+                      signature_crossrefs: true
+                      separate_signature: true
+
+                      # Member options
+                      show_source: false
+                      members_order: source
+                      group_by_category: true
+                      show_category_heading: true
+                      show_symbol_type_heading: true
+                      show_symbol_type_toc: true
+                      inherited_members: false
+
+                      # Filter options
+                      filters:
+                          - "!^_" # Exclude private members
+                          - "!^__(?!init__).*__$" # Exclude magic methods except __init__
+
+markdown_extensions:
+    - admonition
+    - attr_list
+    - codehilite:
+          guess_lang: false
+    - def_list
+    - footnotes
+    - md_in_html
+    - toc:
+          permalink: true
+          baselevel: 2
+    - pymdownx.arithmatex
+    - pymdownx.betterem:
+          smart_enable: all
+    - pymdownx.caret
+    - pymdownx.critic
+    - pymdownx.details
+    - pymdownx.emoji:
+          emoji_index: !!python/name:material.extensions.emoji.twemoji
+          emoji_generator: !!python/name:material.extensions.emoji.to_svg
+    - pymdownx.highlight:
+          anchor_linenums: true
+          line_spans: __span
+          pygments_lang_class: true
+    - pymdownx.inlinehilite
+    - pymdownx.keys
+    - pymdownx.mark
+    - pymdownx.smartsymbols
+    - pymdownx.snippets
+    - pymdownx.superfences:
+          custom_fences:
+              - name: mermaid
+                class: mermaid
+                format: !!python/name:pymdownx.superfences.fence_code_format
+    - pymdownx.tabbed:
+          alternate_style: true
+    - pymdownx.tasklist:
+          custom_checkbox: true
+    - pymdownx.tilde
+
+extra:
+    social:
+        - icon: fontawesome/brands/github
+          link: https://github.com/Matt-Hadley/wyrestorm-networkhd-py
+          name: GitHub Repository

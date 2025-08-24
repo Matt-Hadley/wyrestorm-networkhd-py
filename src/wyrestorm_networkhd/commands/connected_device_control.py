@@ -189,10 +189,14 @@ class ConnectedDeviceControlCommands:
             infrared "<irdata>" <TX|RX>
 
         Command Example: Instruct encoder to send custom IR command
-            infrared "0000 0067 0000 0015 0060 0018 0030 0018 0018 0018 0030 0018 0018 0018 0030 0018 0018 0018 0018 0018 0018 0018 0030 0018 0018 0018 0030 0018 0030 0018 0018 0018 0030 0018 0018 0018 0018 0018 0018 0018 0030 0018 0030 0018 0030 01FE" source1
+            ```
+            infrared "0000 0067 0000 0015 0060 0018 0030 0018 0018 0018 0030 0018..." source1
+            ```
 
         Response Example: Command acknowledgment
-            infrared "0000 0067 0000 0015 0060 0018 0030 0018 0018 0018 0030 0018 0018 0018 0030 0018 0018 0018 0018 0018 0018 0018 0030 0018 0018 0018 0030 0018 0030 0018 0018 0018 0030 0018 0018 0018 0018 0018 0018 0018 0030 0018 0030 0018 0030 01FE" source1
+            ```
+            infrared "0000 0067 0000 0015 0060 0018 0030 0018 0018 0018 0030 0018..." source1
+            ```
         """
         command = f'infrared "{irdata}" {device}'
         response = await self.client.send_command(command)
@@ -276,10 +280,14 @@ class ConnectedDeviceControlCommands:
             serial -b 115200-8n1 -r on -n on -h off "vol +80dB" source1
 
         Command Example 2: Instruct decoder to send custom RS-232 Hex command
-            serial -b 19200-7e2 -r off -n off -h on "4c 6f 72 65 6d 20 69 70 73 75 6d 20 64 6f 6c 6f 72 20 73 69 74 20 61 6d 65 74 2c 20 63 6f 6e 73 65 63 74 65 74 75 72 20 61 64 69 70 69 73 63 69 6e 67 20 65 6c 69 74 2c 20 73 65 64 20 64 6f 20 65 69 75 73 6d 6f 64 20 74 65 6d 70 6f 72 20 69 6e 63 69 64 69 64 75 6e 74 20 75 74 20 6c 61 62 6f 72 65 20 65 74 20 64 6f 6c 6f 72 65 20 6d 61 67 6e 61 20 61 6c 69 71 75 61 0D 0A" display1
+            ```
+            serial -b 19200-7e2 -r off -n off -h on "4c 6f 72 65 6d 20 69 70 73 75..." display1
+            ```
 
         Response Example: Command acknowledgment
-            serial -b 19200-7e2 -r off -n off -h on "4c 6f 72 65 6d 20 69 70 73 75 6d 20 64 6f 6c 6f 72 20 73 69 74 20 61 6d 65 74 2c 20 63 6f 6e 73 65 63 74 65 74 75 72 20 61 64 69 70 69 73 63 69 6e 67 20 65 6c 69 74 2c 20 73 65 64 20 64 6f 20 65 69 75 73 6d 6f 64 20 74 65 6d 70 6f 72 20 69 6e 63 69 64 69 64 75 6e 74 20 75 74 20 6c 61 62 6f 72 65 20 65 74 20 64 6f 6c 6f 72 65 20 6d 61 67 6e 61 20 61 6c 69 71 75 61 0D 0A" display1
+            ```
+            serial -b 19200-7e2 -r off -n off -h on "4c 6f 72 65 6d 20 69 70 73 75..." display1
+            ```
         """
         cr_flag = "on" if cr else "off"
         lf_flag = "on" if lf else "off"

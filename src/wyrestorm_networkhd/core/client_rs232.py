@@ -172,6 +172,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
         Raises:
             ConnectionError: If not connected to the device.
             CommandError: If the command fails or times out.
+
         """
         if not self.is_connected():
             raise ConnectionError("Not connected")
