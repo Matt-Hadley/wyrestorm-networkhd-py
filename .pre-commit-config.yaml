@@ -9,6 +9,7 @@ repos:
             types: [python]
             pass_filenames: false
             always_run: true
+            exclude: ".*/_version\\.py$"
 
           - id: format-docs
             name: format documentation (via Makefile)

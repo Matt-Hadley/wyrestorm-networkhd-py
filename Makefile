@@ -71,7 +71,7 @@ help: ## Show this help message
 	@echo "$(GREEN)🚀 Quick Start:$(NC)"
 	@echo "  install          - Complete development environment setup"
 	@echo "  dev-workflow     - Format → Lint → Fast Tests (daily development)"
-	@echo "  health-check     - Comprehensive project validation (all tests)"
+	@echo "  health-check     - Comprehensive project validation (all tests + docs)"
 	@echo ""
 	@echo "$(YELLOW)📦 Development Setup:$(NC)"
 	@echo "  install          - Complete development environment setup"
@@ -111,7 +111,7 @@ help: ## Show this help message
 	@echo "  clean-all        - Remove everything including venv"
 	@echo ""
 	@echo "$(YELLOW)🔧 Utilities:$(NC)"
-	@echo "  health-check     - Comprehensive project validation"
+	@echo "  health-check     - Comprehensive project validation (includes docs)"
 	@echo "  show-deps        - Show installed dependencies"
 	@echo "  check-versions   - Check Python and package versions"
 	@echo "  pre-commit       - Setup and run pre-commit hooks"
@@ -138,7 +138,7 @@ install: validate-config create-venv check-versions install-deps setup-pre-commi
 dev-workflow: format check test-fast ## Complete development workflow (format, check, fast tests only)
 	@echo "$(GREEN)✓$(NC) Development workflow completed (fast tests only)"
 
-health-check: validate-config check-versions show-deps check-project-structure format-check test-cov check security-audit build ## Comprehensive project validation
+health-check: validate-config check-versions show-deps check-project-structure format-check test-cov check security-audit build docs ## Comprehensive project validation
 	@echo ""
 	@echo "$(GREEN)🎉 Health check complete - all systems validated!$(NC)"
 
