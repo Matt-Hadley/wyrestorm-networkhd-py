@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v1.0.0...v1.1.0) (2025-08-24)
+
+
+### Features
+
+* optimize release workflow to avoid duplicate health-checks ([3897014](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/3897014843d28db16a56bf6fae40b38305746c0d))
+
+
+### Bug Fixes
+
+* use runtime mkdocs resolution instead of parse-time variable ([bea3cc2](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/bea3cc2f732f309c8d69cfc3dda7a70e9702bed3))
+
 ## [1.0.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v0.1.3...v1.0.0) (2025-08-24)
 
 
