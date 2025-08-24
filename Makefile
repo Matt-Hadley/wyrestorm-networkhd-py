@@ -24,6 +24,9 @@ SPHINX := $(shell if [ -x "$(VENV_BIN)/sphinx-build" ]; then echo "$(VENV_BIN)/s
 # Better Python detection
 PYTHON3 := $(shell command -v python3 2> /dev/null || echo "python3")
 
+# File exclusion patterns
+EXCLUDE_FILES := _version.py
+
 # Fallback for systems without python3
 ifeq ($(PYTHON3),python3)
     PYTHON3 := python
@@ -217,7 +220,7 @@ format-check: ## Check if code is properly formatted (without fixing)
 format-code: ## Format Python code with pyupgrade + Ruff
 	$(ECHO) "$(YELLOW)Formatting Python code...$(NC)"
 	@if command -v $(PYUPGRADE) >/dev/null 2>&1; then \
-		find src/ tests/ -name "*.py" -exec $(PYUPGRADE) --py312-plus {} +; \
+		find src/ tests/ -name "*.py" ! -name "$(EXCLUDE_FILES)" -exec $(PYUPGRADE) --py312-plus {} +; \
 	else \
 		echo "$(YELLOW)⚠ pyupgrade not found - run 'make install-deps' to install it$(NC)"; \
 		exit 1; \
@@ -261,7 +264,7 @@ type-check-strict: ## Run type checking with MyPy (strict - fails on errors)
 code-quality: ## Run additional code quality checks
 	$(ECHO) "$(YELLOW)Running code quality checks...$(NC)"
 	@if command -v $(VULTURE) >/dev/null 2>&1; then \
-		$(VULTURE) src/ --min-confidence 80 --exclude "*/_version.py"; \
+		$(VULTURE) src/ --min-confidence 80 --exclude "*/$(EXCLUDE_FILES)"; \
 	else \
 		echo "$(YELLOW)⚠ vulture not found - install with 'pip install vulture'$(NC)"; \
 		exit 1; \

@@ -181,6 +181,7 @@ markers = [
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+exclude = ["src/wyrestorm_networkhd/_version.py"]
 
 # Ruff formatter configuration (replaces Black)
 [tool.ruff.format]
