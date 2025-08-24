@@ -362,25 +362,25 @@ MKDOCS := $(shell if [ -x "$(VENV_BIN)/mkdocs" ]; then echo "$(VENV_BIN)/mkdocs"
 
 docs: ## Build MkDocs documentation with all optional dependencies
 	$(ECHO) "$(YELLOW)Building documentation...$(NC)"
-	@if ! command -v $(MKDOCS) >/dev/null 2>&1; then \
+	@if ! command -v mkdocs >/dev/null 2>&1; then \
 		echo "$(YELLOW)⚠ mkdocs not found - installing docs dependencies...$(NC)"; \
 		$(PIP) install -e ".[docs]"; \
 	fi
 	@echo "$(YELLOW)Installing all optional dependencies for complete API documentation...$(NC)"
 	$(Q)$(PIP) install -e ".[docs,rs232]" --quiet
 	@echo "$(YELLOW)Building MkDocs site...$(NC)"
-	$(Q)$(MKDOCS) build --clean
+	$(Q)mkdocs build --clean
 	@echo "$(GREEN)✓$(NC) Documentation built in $(DOCS_BUILD_DIR)/"
 	@echo "$(YELLOW)Open:$(NC) file://$(PWD)/$(DOCS_BUILD_DIR)/index.html"
 
 docs-serve: ## Serve documentation locally with live reload
 	$(ECHO) "$(YELLOW)Starting MkDocs development server...$(NC)"
-	@if ! command -v $(MKDOCS) >/dev/null 2>&1; then \
+	@if ! command -v mkdocs >/dev/null 2>&1; then \
 		echo "$(YELLOW)⚠ mkdocs not found - installing docs dependencies...$(NC)"; \
 		$(PIP) install -e ".[docs]"; \
 	fi
 	$(Q)$(PIP) install -e ".[docs,rs232]" --quiet
-	$(Q)$(MKDOCS) serve
+	$(Q)mkdocs serve
 
 clean-docs: ## Clean documentation build artifacts
 	$(ECHO) "$(YELLOW)Cleaning documentation build...$(NC)"
