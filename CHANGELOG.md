@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v1.1.0...v1.1.1) (2025-08-24)
+
+
+### Bug Fixes
+
+* correct coverage badge output parsing in release workflow ([ec174af](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/ec174af075b86eebf307cb7d9601f5d7fe6175d2))
+* restore release.yml name for PyPI trusted publisher compatibility ([d3acb76](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/d3acb76dbc805c3328aee696f31a18c1e50a33cc))
+* update project structure validation for temporary workflow ([ecd6f0a](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/ecd6f0a6db85e25b72e82b8aa95f22b27ee0a696))
+* use virtual environment mkdocs path for reliable documentation building ([c801cc6](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/c801cc6c27abb5c30525451cb76cbe4bcc9cd8fe))
+
 ## [1.1.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v1.0.0...v1.1.0) (2025-08-24)
 
 
