@@ -11,7 +11,7 @@ monitoring. Features **strongly typed APIs**, **async/await support**, **multipl
 **comprehensive API coverage**, **robust error handling**, and **real-time notifications**.
 
 📖 **[View Documentation](https://matt-hadley.github.io/wyrestorm-networkhd-py/)** | 🚀 **[Quick Start](#quick-start)**
-| 💻 **[API Reference](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/)**
+| 💻 **[API Reference](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/core/)**
 
 ## Installation
 

@@ -1,5 +1,5 @@
-# Temporary Release Workflow - Skip Release Please
-name: Temp Release
+# Release Management - Automated Releases with Release Please
+name: Release
 
 on:
     push:
@@ -7,17 +7,41 @@ on:
 
 permissions:
     contents: write
-    id-token: write
+    pull-requests: write
+    issues: write # For labels
+    id-token: write # For attestations
     attestations: write
-    pages: write
+    checks: write
+    pages: write # For GitHub Pages
 
 concurrency:
-    group: temp-release-${{ github.ref }}
-    cancel-in-progress: false
+    group: release-${{ github.ref }}
+    cancel-in-progress: false # Don't cancel releases
 
 jobs:
+    release-please:
+        name: Release Please
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        outputs:
+            releases_created: ${{ steps.release.outputs.releases_created }}
+            tag_name: ${{ steps.release.outputs.tag_name }}
+        steps:
+            - uses: googleapis/release-please-action@v4
+              id: release
+              with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  release-type: python
+
+            - name: Debug Release Please outputs
+              run: |
+                  echo "Releases created: '${{ steps.release.outputs.releases_created }}'"
+                  echo "Tag name: '${{ steps.release.outputs.tag_name }}'"
+
     publish:
         name: Publish to PyPI
+        needs: release-please
+        if: ${{ needs.release-please.outputs.releases_created == 'true' }}
         runs-on: ubuntu-latest
         timeout-minutes: 10
         environment: pypi
@@ -46,12 +70,24 @@ jobs:
             - name: Extract coverage percentage
               id: coverage
               continue-on-error: true
-              uses: irongut/CodeCoverageSummary@v1.3.0
-              with:
-                  filename: coverage.xml
-                  badge: false
-                  format: text
-                  output: console
+              run: |
+                  if [ -f coverage.xml ]; then
+                      COVERAGE=$(python -c "
+                  import xml.etree.ElementTree as ET
+                  try:
+                      tree = ET.parse('coverage.xml')
+                      root = tree.getroot()
+                      line_rate = float(root.attrib['line-rate'])
+                      print(f'{line_rate * 100:.0f}')
+                  except:
+                      print('0')
+                  ")
+                      echo "line-rate=$COVERAGE" >> $GITHUB_OUTPUT
+                      echo "Coverage percentage: $COVERAGE%"
+                  else
+                      echo "line-rate=0" >> $GITHUB_OUTPUT
+                      echo "Coverage file not found"
+                  fi
 
             - name: Update coverage badge
               continue-on-error: true
@@ -67,22 +103,30 @@ jobs:
                   minColorRange: 0
                   namedLogo: pytest
 
+            - name: Upload release assets
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ needs.release-please.outputs.tag_name }}
+                  files: |
+                      dist/*.whl
+                  fail_on_unmatched_files: true
+
             - name: Attest build artifacts
               continue-on-error: true
               uses: actions/attest-build-provenance@v2
               with:
                   subject-path: "dist/*.whl"
 
-            # Temporarily disabled for testing
-            # - name: Publish to PyPI
-            #   uses: pypa/gh-action-pypi-publish@release/v1
-            #   with:
-            #       packages-dir: dist/
-            #       attestations: true
+            - name: Publish to PyPI
+              uses: pypa/gh-action-pypi-publish@release/v1
+              with:
+                  packages-dir: dist/
+                  attestations: true
 
     publish-docs:
         name: Publish Documentation
-        needs: publish
+        needs: [release-please, publish]
+        if: ${{ needs.release-please.outputs.releases_created == 'true' }}
         runs-on: ubuntu-latest
         timeout-minutes: 10
         environment:
@@ -114,7 +158,7 @@ jobs:
                   pip install -e ".[docs,rs232]"
 
             - name: Build documentation
-              run: .venv/bin/mkdocs build --clean
+              run: mkdocs build --clean
 
             - name: Setup Pages
               uses: actions/configure-pages@v5
