@@ -417,5 +417,5 @@ check-project-structure: ## Validate project structure and required files
 	if [ -d "tests" ]; then echo "$(GREEN)✓$(NC) Tests directory exists"; else echo "$(RED)✗$(NC) Tests directory missing"; FAILED=1; fi; \
 	if [ -f "README.md" ]; then echo "$(GREEN)✓$(NC) README.md exists"; else echo "$(RED)✗$(NC) README.md missing"; FAILED=1; fi; \
 	if [ -f "SECURITY.md" ]; then echo "$(GREEN)✓$(NC) Security policy exists"; else echo "$(RED)✗$(NC) Security policy missing"; FAILED=1; fi; \
-	if [ -f ".github/workflows/pr-validation.yml" ] && ([ -f ".github/workflows/release.yml" ] || [ -f ".github/workflows/temp-release.yml" ]); then echo "$(GREEN)✓$(NC) CI/CD workflows exist"; else echo "$(RED)✗$(NC) CI/CD workflows missing"; FAILED=1; fi; \
+	if [ -f ".github/workflows/pr-validation.yml" ] && [ -f ".github/workflows/release.yml" ]; then echo "$(GREEN)✓$(NC) CI/CD workflows exist"; else echo "$(RED)✗$(NC) CI/CD workflows missing"; FAILED=1; fi; \
 	if [ $$FAILED -eq 1 ]; then echo "$(RED)✗$(NC) Project structure validation failed"; exit 1; else echo "$(GREEN)✓$(NC) Project structure validation passed"; fi
