@@ -57,28 +57,51 @@ class NHDAPI:
         # Store the client
         self.client = client
 
-        # Import only when needed to avoid circular imports and reduce startup time
-        from .api_endpoint import APIEndpointCommands
-        from .api_notifications import APINotificationsCommands
-        from .api_query import APIQueryCommands
-        from .audio_output import AudioOutputCommands
-        from .connected_device_control import ConnectedDeviceControlCommands
-        from .device_port_switch import DevicePortSwitchCommands
-        from .media_stream_matrix_switch import MediaStreamMatrixSwitchCommands
-        from .multiview import MultiviewCommands
-        from .reboot_reset import RebootResetCommands
-        from .video_stream_text_overlay import VideoStreamTextOverlayCommands
-        from .video_wall import VideoWallCommands
+        # Dynamically discover and initialize all command groups
+        self._initialize_command_groups(client)
 
-        # Initialize all command groups
-        self.api_endpoint = APIEndpointCommands(client)
-        self.api_notifications = APINotificationsCommands(client)
-        self.api_query = APIQueryCommands(client)
-        self.audio_output = AudioOutputCommands(client)
-        self.connected_device_control = ConnectedDeviceControlCommands(client)
-        self.device_port_switch = DevicePortSwitchCommands(client)
-        self.media_stream_matrix_switch = MediaStreamMatrixSwitchCommands(client)
-        self.multiview = MultiviewCommands(client)
-        self.reboot_reset = RebootResetCommands(client)
-        self.video_stream_text_overlay = VideoStreamTextOverlayCommands(client)
-        self.video_wall = VideoWallCommands(client)
+    def _initialize_command_groups(self, client: "_BaseNetworkHDClient") -> None:
+        """Dynamically discover and initialize all command group classes.
+
+        This method automatically finds all command modules in the commands package
+        and initializes their command classes, making NHDAPI automatically support
+        any new command groups without code changes.
+
+        Args:
+            client: The NetworkHD client to pass to each command group
+        """
+        import importlib
+        import inspect
+        import pkgutil
+        from pathlib import Path
+
+        # Get the path to the commands package
+        commands_path = Path(__file__).parent
+
+        # Iterate through all modules in the commands package
+        for _, name, _ in pkgutil.iter_modules([str(commands_path)]):
+            # Skip private modules and __init__.py
+            if name.startswith("_") or name == "__init__":
+                continue
+
+            try:
+                # Import the module
+                module = importlib.import_module(f".{name}", package=__name__)
+
+                # Find command classes in the module (classes ending with 'Commands')
+                for class_name, class_obj in inspect.getmembers(module, inspect.isclass):
+                    if (
+                        class_name.endswith("Commands")
+                        and class_obj.__module__ == module.__name__
+                        and hasattr(class_obj, "__init__")
+                    ):
+                        # Create attribute name from module name (snake_case)
+                        attr_name = name
+
+                        # Initialize the command group and add it as an attribute
+                        command_instance = class_obj(client)
+                        setattr(self, attr_name, command_instance)
+
+            except ImportError:
+                # Skip modules that can't be imported (missing dependencies, etc.)
+                continue
