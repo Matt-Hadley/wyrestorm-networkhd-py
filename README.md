@@ -11,7 +11,8 @@ monitoring. Features **strongly typed APIs**, **async/await support**, **multipl
 **comprehensive API coverage**, **robust error handling**, and **real-time notifications**.
 
 📖 **[View Documentation](https://matt-hadley.github.io/wyrestorm-networkhd-py/)** | 🚀 **[Quick Start](#quick-start)**
-| 💻 **[API Reference](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/core/)**
+| 💻 **[API Reference](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/core/)** | 🔧
+**[Troubleshooting](https://matt-hadley.github.io/wyrestorm-networkhd-py/troubleshooting/)**
 
 ## Installation
 
@@ -70,8 +71,8 @@ asyncio.run(main())
 
 - **[Getting Started](https://matt-hadley.github.io/wyrestorm-networkhd-py/)**: Installation, configuration, and usage
   examples
-- **[API Reference](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/)**: Complete API documentation with
-  type hints
+- **[API Reference](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/core/)**: Complete API documentation
+  with type hints
 - **[Core Components](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/core/)**: Client classes and
   connection management
 - **[Commands](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/commands/)**: All command modules and
@@ -79,6 +80,8 @@ asyncio.run(main())
 - **[Models](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/models/)**: Data models and response
   structures
 - **[Resources](https://matt-hadley.github.io/wyrestorm-networkhd-py/resources/)**: NetworkHD raw API documentation
+- **[Troubleshooting](https://matt-hadley.github.io/wyrestorm-networkhd-py/troubleshooting/)**: Common issues and
+  solutions
 
 ## License
 

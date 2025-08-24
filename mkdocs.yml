@@ -52,6 +52,7 @@ nav:
           - Models: reference/models.md
           - Exceptions: reference/exceptions.md
     - Resources: resources.md
+    - Troubleshooting: troubleshooting.md
     - Contributing: contributing.md
     - Changelog: changelog.md
 
