@@ -98,7 +98,18 @@ class TestAPIQueryCommands:
     async def test_config_get_devicejsonstring(self):
         """Test device JSON string query command."""
         # Arrange
-        expected_response = 'device json string: {"devices": [{"name": "TX1", "type": "transmitter"}]}'
+        expected_response = """device json string:
+[
+    {
+        "aliasName": "TX1",
+        "deviceType": "Transmitter",
+        "group": [{"name": "ungrouped", "sequence": 1}],
+        "ip": "192.168.1.100",
+        "online": true,
+        "sequence": 1,
+        "trueName": "TEST-TX1"
+    }
+]"""
         self.mock_client.send_command.return_value = expected_response
 
         # Act
@@ -106,8 +117,9 @@ class TestAPIQueryCommands:
 
         # Assert
         self.mock_client.send_command.assert_called_once_with("config get devicejsonstring")
-        assert "TX1" in str(result)
-        assert result["devices"][0]["name"] == "TX1"
+        assert len(result) == 1
+        assert result[0].aliasName == "TX1"
+        assert result[0].deviceType == "Transmitter"
 
     # =============================================================================
     # 13.2 Query Commands – Device Configuration
@@ -179,7 +191,15 @@ class TestAPIQueryCommands:
         """Test device info query for specific device."""
         # Arrange
         device = "TX1"
-        expected_response = 'devices json info: {"device": "TX1", "status": "online"}'
+        expected_response = """devices json info:
+{
+    "devices": [
+        {
+            "aliasname": "TX1",
+            "name": "NHD-400-TX-TEST123"
+        }
+    ]
+}"""
         self.mock_client.send_command.return_value = expected_response
 
         # Act
@@ -187,19 +207,34 @@ class TestAPIQueryCommands:
 
         # Assert
         self.mock_client.send_command.assert_called_once_with("config get device info TX1", response_timeout=5)
-        assert "TX1" in str(result)
-        assert result["device"] == "TX1"
+        assert len(result) == 1
+        assert result[0].aliasname == "TX1"
 
     @pytest.mark.asyncio
     async def test_config_get_device_info_all_devices(self):
         """Test device info query for all devices."""
         # Arrange
-        expected_response = 'devices json info: {"devices": [{"name": "TX1"}, {"name": "RX1"}]}'
+        expected_response = """devices json info:
+{
+    "devices": [
+        {
+            "aliasname": "TX1",
+            "name": "NHD-400-TX-TEST123"
+        },
+        {
+            "aliasname": "RX1",
+            "name": "NHD-400-RX-TEST456"
+        }
+    ]
+}"""
         self.mock_client.send_command.return_value = expected_response
 
-        # Act & Assert
-        await self.commands.config_get_device_info()
+        # Act
+        result = await self.commands.config_get_device_info()
+
+        # Assert
         self.mock_client.send_command.assert_called_once_with("config get device info", response_timeout=5)
+        assert len(result) == 2
 
     @pytest.mark.asyncio
     async def test_config_get_device_info_device_not_found(self):
@@ -232,12 +267,25 @@ class TestAPIQueryCommands:
         """Test device status query for specific device."""
         # Arrange
         device = "RX1"
-        expected_response = 'devices status info: {"device": "RX1", "online": true}'
+        expected_response = """devices status info:
+{
+    "devices status": [
+        {
+            "aliasname": "RX1",
+            "name": "NHD-400-RX-TEST456",
+            "hdmi out active": "true"
+        }
+    ]
+}"""
         self.mock_client.send_command.return_value = expected_response
 
-        # Act & Assert
-        await self.commands.config_get_device_status(device)
+        # Act
+        result = await self.commands.config_get_device_status(device)
+
+        # Assert
         self.mock_client.send_command.assert_called_once_with("config get device status RX1")
+        assert len(result) == 1
+        assert result[0].aliasname == "RX1"
 
     @pytest.mark.asyncio
     async def test_config_get_device_status_device_not_found(self):

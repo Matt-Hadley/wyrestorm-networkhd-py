@@ -1,7 +1,8 @@
-from typing import Any
-
 from ..models.api_query import (
     CustomMultiviewLayoutList,
+    DeviceInfo,
+    DeviceJsonString,
+    DeviceStatus,
     EndpointAliasHostname,
     IpSetting,
     Matrix,
@@ -20,7 +21,6 @@ from ..models.api_query import (
     VideoWallSceneList,
     VideowallWithinWallSceneList,
 )
-from ._response_helpers import parse_json_response
 
 
 class APIQueryCommands:
@@ -183,11 +183,11 @@ class APIQueryCommands:
 
         return devices
 
-    async def config_get_devicejsonstring(self) -> dict[str, Any]:
+    async def config_get_devicejsonstring(self) -> list[DeviceJsonString]:
         """Query general information for all TX or RX saved in the NHD-CTL
 
         Returns:
-            dict[str, Any]: Parsed JSON device information
+            list[DeviceJsonString]: Parsed device JSON string information objects
 
         Command applies to:
             NHD-110-TX/RX, NHD-100-TX, NHD-140-TX, NHD-100-RX, NHD-200-TX, NHD-200-RX, NHD-210-RX, NHD-220-RX, NHD-250-RX
@@ -214,7 +214,7 @@ class APIQueryCommands:
         """
         command = "config get devicejsonstring"
         response = await self.client.send_command(command)
-        return parse_json_response(response, "device json string:")
+        return DeviceJsonString.parse(response)
 
     # =============================================================
     # 13.2 Query Commands – Device Configuration
@@ -275,14 +275,14 @@ class APIQueryCommands:
             # Multiple devices query
             return EndpointAliasHostname.parse_multiple(response)
 
-    async def config_get_device_info(self, device: str | None = None) -> dict[str, Any]:
+    async def config_get_device_info(self, device: str | None = None) -> list[DeviceInfo]:
         """Query TX or RX device working parameters
 
         Args:
             device: Optional device reference (TX or RX alias/hostname)
 
         Returns:
-            dict[str, Any]: Parsed device information
+            list[DeviceInfo]: Parsed device information objects
 
         Raises:
             DeviceQueryError: If device is not found or returns an error
@@ -319,28 +319,16 @@ class APIQueryCommands:
         """
         command = f"config get device info {device}" if device else "config get device info"
         response = await self.client.send_command(command, response_timeout=5)
-        json_data = parse_json_response(response, "devices json info:")
+        return DeviceInfo.parse(response)
 
-        # Check for error responses in JSON data
-        if "devices" in json_data:
-            for device_info in json_data["devices"]:
-                if isinstance(device_info, dict) and "error" in device_info:
-                    device_name = device_info.get("name", "unknown")
-                    error_message = device_info.get("error", "unknown error")
-                    from ..exceptions import DeviceQueryError
-
-                    raise DeviceQueryError(device_name, error_message)
-
-        return json_data
-
-    async def config_get_device_status(self, device: str | None = None) -> dict[str, Any]:
+    async def config_get_device_status(self, device: str | None = None) -> list[DeviceStatus]:
         """Query TX or RX device real-time status
 
         Args:
             device: Optional device reference (TX or RX alias/hostname)
 
         Returns:
-            dict[str, Any]: Parsed device status information
+            list[DeviceStatus]: Parsed device status information objects
 
         Raises:
             DeviceQueryError: If device is not found or returns an error
@@ -377,19 +365,7 @@ class APIQueryCommands:
         """
         command = f"config get device status {device}" if device else "config get device status"
         response = await self.client.send_command(command)
-        json_data = parse_json_response(response, "devices status info:")
-
-        # Check for error responses in JSON data
-        if "devices status" in json_data:
-            for device_status in json_data["devices status"]:
-                if isinstance(device_status, dict) and "error" in device_status:
-                    device_name = device_status.get("name", "unknown")
-                    error_message = device_status.get("error", "unknown error")
-                    from ..exceptions import DeviceQueryError
-
-                    raise DeviceQueryError(device_name, error_message)
-
-        return json_data
+        return DeviceStatus.parse(response)
 
     # =============================================================
     # 13.3 Query Commands – Stream Matrix Switching

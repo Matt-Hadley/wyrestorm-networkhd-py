@@ -10,9 +10,18 @@ This test suite covers:
 
 import pytest
 
+from wyrestorm_networkhd.exceptions import DeviceNotFoundError
 from wyrestorm_networkhd.models.api_query import (
     BaseMatrix,
     CustomMultiviewLayoutList,
+    DeviceInfo,
+    DeviceInfoAudioOutput,
+    DeviceInfoSinkPower,
+    DeviceInfoSinkPowerCecCommands,
+    DeviceInfoSinkPowerRs232Commands,
+    DeviceJsonString,
+    DeviceJsonStringGroup,
+    DeviceStatus,
     EndpointAliasHostname,
     IpSetting,
     MatrixAudio3,
@@ -50,7 +59,295 @@ def api_v6_7_responses() -> dict[str, str]:
         # Device JSON responses
         "device_json": 'device json string: {"devices": [{"name": "source1", "type": "tx", "status": "online"}]}',
         "devices_json": 'devices json info: {"devices": [{"name": "source1", "type": "tx", "status": "online"}]}',
-        "devices_status": 'devices status info: {"devices": [{"name": "source1", "type": "tx", "status": "online"}]}',
+        # Device status responses with proper type examples
+        "device_status_nhd_110_210": """devices status info:
+{
+    "devices status" : [
+        {
+            "aliasname" : "SOURCE1",
+            "audio stream ip address" : "224.48.46.225",
+            "encoding enable" : "true",
+            "hdmi in active" : "true",
+            "hdmi in frame rate" : "60",
+            "line out audio enable" : "false",
+            "name" : "NHD-140-TX-E4CE02102EE1",
+            "resolution" : "1920x1080",
+            "stream frame rate" : "60",
+            "stream resolution" : "1920x1080",
+            "video stream ip address" : "224.16.46.225"
+        },
+        {
+            "aliasname" : "DISPLAY1",
+            "audio bitrate" : "1536000",
+            "audio input format" : "lpcm",
+            "hdcp status" : "hdcp14",
+            "hdmi out active" : "true",
+            "hdmi out audio enable" : "true",
+            "hdmi out frame rate" : "60",
+            "hdmi out resolution" : "1920x1080",
+            "line out audio enable" : "true",
+            "name" : "NHD-210-RX-E4CE02107132",
+            "stream error count" : "0",
+            "stream frame rate" : "60",
+            "stream resolution" : "1920x1080"
+        }
+    ]
+}""",
+        "device_status_nhd_400": """devices status info:
+{
+    "devices status" : [
+        {
+            "aliasname" : "DISPLAY1",
+            "audio bitrate" : "3072000",
+            "audio output format" : "lpcm",
+            "hdcp" : "hdcp22",
+            "hdmi out active" : "true",
+            "hdmi out frame rate" : "60",
+            "hdmi out resolution" : "1920x1080",
+            "name" : "NHD-400-RX-E4CE02103CB3"
+        },
+        {
+            "aliasname" : "SOURCE1",
+            "audio bitrate" : "3072000",
+            "audio input format" : "lpcm",
+            "hdcp" : "hdcp22",
+            "hdmi in active" : "true",
+            "hdmi in frame rate" : "60",
+            "name" : "NHD-400-TX-E4CE0210B6D4",
+            "resolution" : "1920x1080"
+        }
+    ]
+}""",
+        "device_status_nhd_600": """devices status info:
+{
+    "devices status" : [
+        {
+            "aliasname" : "DISPLAY1",
+            "hdcp" : "hdcp14",
+            "hdmi out active" : "true",
+            "hdmi out frame rate" : "60",
+            "hdmi out resolution" : "1920x1080",
+            "name" : "NHD-600-RX-D88039E5E525"
+        },
+        {
+            "aliasname" : "SOURCE1",
+            "hdcp" : "hdcp14",
+            "hdmi in active" : "true",
+            "hdmi in frame rate" : "60",
+            "name" : "NHD-600-TX-D88039E5ED1E",
+            "resolution" : "1920x1080"
+        }
+    ]
+}""",
+        # Device info responses with proper nested objects and type examples
+        "device_info_nhd_110_210": """devices json info:
+{
+    "devices" : [
+        {
+            "aliasname" : "DISPLAY1",
+            "audio" : [
+                {
+                    "mute" : false,
+                    "name" : "lineout1"
+                }
+            ],
+            "edid" : "null",
+            "gateway" : "",
+            "hdcp" : true,
+            "ip4addr" : "169.254.7.192",
+            "ip_mode" : "autoip",
+            "mac" : "e4:ce:02:10:7d:f5",
+            "name" : "NHD-220-RX-E4CE02107DF5",
+            "netmask" : "255.255.0.0",
+            "sourcein" : "NHD-140-TX-E4CE02102EE1;",
+            "version" : "v2.12.2"
+        },
+        {
+            "aliasname" : "SOURCE1",
+            "cbr_avg_bitrate" : 10000,
+            "edid" : "00FFFFFFFFFFFF001C4501000100000008120103807341780ACF74A3574CB023094",
+            "enc_fps" : 60,
+            "enc_gop" : 60,
+            "enc_rc_mode" : "vbr",
+            "fixqp_iqp" : 25,
+            "fixqp_pqp" : 25,
+            "gateway" : "169.254.0.254",
+            "hdcp" : true,
+            "ip4addr" : "169.254.85.242",
+            "ip_mode" : "fixed",
+            "mac" : "e4:ce:02:10:2e:e3",
+            "name" : "NHD-140-TX-E4CE02102EE3",
+            "netmask" : "255.255.0.0",
+            "profile" : "hp",
+            "sourcein" : "unknown",
+            "transport_type" : "raw",
+            "vbr_max_bitrate" : 20000,
+            "vbr_max_qp" : 51,
+            "vbr_min_qp" : 0,
+            "version" : "v1.0.6"
+        }
+    ]
+}""",
+        "device_info_nhd_400": """devices json info:
+{
+    "devices" : [
+        {
+            "aliasname" : "DISPLAY1",
+            "edid" : "null",
+            "gateway" : "",
+            "ip4addr" : "169.254.6.107",
+            "ip_mode" : "dhcp",
+            "km_over_ip_enable" : "true",
+            "mac" : "e4:ce:02:10:2e:f0",
+            "name" : "NHD-400-RX-E4CE02102EF0",
+            "netmask" : "255.255.0.0",
+            "version" : "v0.10.1",
+            "videodetection" : "lost"
+        },
+        {
+            "aliasname" : "SOURCE1",
+            "audio_input_type" : "auto",
+            "edid" : "null",
+            "gateway" : "169.254.0.254",
+            "ip4addr" : "169.254.5.209",
+            "ip_mode" : "autoip",
+            "km_over_ip_enable" : "true",
+            "mac" : "e4:ce:02:10:6e:9e",
+            "name" : "NHD-400-TX-E4CE02106E9E",
+            "netmask" : "255.255.0.0",
+            "version" : "v0.10.1",
+            "videodetection" : "lost"
+        }
+    ]
+}""",
+        "device_info_nhd_600": """devices json info:
+{
+    "devices" : [
+        {
+            "aliasname" : "DISPLAY1",
+            "analog_audio_source" : "analog",
+            "edid" : "",
+            "gateway" : "0.0.0.0",
+            "hdmi_audio_source" : "hdmi",
+            "ip4addr" : "169.254.38.229",
+            "ip_mode" : "dhcp",
+            "mac" : "d8:80:39:e5:e5:25",
+            "name" : "NHD-600-RX-D88039E5E525",
+            "netmask" : "255.255.0.0",
+            "serial_param" : "57600-8n1",
+            "sinkpower" : {
+                "cec" : {
+                    "onetouchplay" : "4004",
+                    "standby" : "ff36"
+                },
+                "mode" : "CEC",
+                "rs232" : {
+                    "mode" : "ascii",
+                    "onetouchplay" : "!POWERON~",
+                    "param" : "115200-8n1",
+                    "standby" : "!POWROFF~"
+                }
+            },
+            "temperature" : 38,
+            "version" : "3.6.0.0",
+            "video_mode" : "fast_switch",
+            "video_stretch_type" : "none",
+            "video_timing" : "1080P@50"
+        },
+        {
+            "aliasname" : "SOURCE1",
+            "analog_audio_direction" : "INPUT",
+            "bandwidth_adjust_mode" : 0,
+            "bit_perpixel" : 8,
+            "color_space" : "RGB",
+            "edid" : "00ffffffffffff004dd903f901010101011b0103806c3d780a0dc9a05747982712484c",
+            "gateway" : "0.0.0.0",
+            "hdcp14_enable" : true,
+            "hdcp22_enable" : true,
+            "ip4addr" : "169.254.2.228",
+            "ip_mode" : "dhcp",
+            "mac" : "d8:80:39:e5:e4:01",
+            "name" : "NHD-600-TX-D88039E5E401",
+            "netmask" : "255.255.0.0",
+            "serial_param" : "57600-8n1",
+            "stream0_enable" : true,
+            "stream0fps_by2_enable" : false,
+            "stream1_enable" : true,
+            "stream1_scale" : "960x544",
+            "stream1fps_by2_enable" : false,
+            "temperature" : 42,
+            "version" : "3.6.0.0",
+            "video_input" : true,
+            "video_source" : "hdmi",
+            "video_timing" : "1920x1080P@60"
+        }
+    ]
+}""",
+        # Device JSON string responses
+        "device_json_string_mixed": """device json string:
+[
+    {
+        "aliasName" : "SOURCE1",
+        "deviceType" : "Transmitter",
+        "group" : [
+            {
+                "name" : "ungrouped",
+                "sequence" : 1
+            }
+        ],
+        "ip" : "169.254.232.229",
+        "online" : true,
+        "sequence" : 1,
+        "trueName" : "NHD-140-TX-E4CE02102EE1"
+    },
+    {
+        "aliasName" : "DISPLAY1",
+        "deviceType" : "Receiver",
+        "group" : [
+            {
+                "name" : "MainDisplays",
+                "sequence" : 2
+            }
+        ],
+        "ip" : "169.254.148.121",
+        "online" : true,
+        "sequence" : 2,
+        "trueName" : "NHD-140-RX-E4CE02102EE2",
+        "txName" : "SOURCE1"
+    },
+    {
+        "aliasName" : "SOURCE7",
+        "deviceType" : "Transmitter",
+        "group" : [
+            {
+                "name" : "ungrouped",
+                "sequence" : 1
+            }
+        ],
+        "ip" : "169.254.1.1",
+        "nameoverlay" : true,
+        "online" : true,
+        "sequence" : 7,
+        "trueName" : "NHD-600-TX-D88039E5E401"
+    }
+]""",
+        "device_json_string_single": """device json string:
+[
+    {
+        "aliasName" : "TEST1",
+        "deviceType" : "Transmitter",
+        "group" : [
+            {
+                "name" : "testgroup",
+                "sequence" : 1
+            }
+        ],
+        "ip" : "192.168.1.100",
+        "online" : false,
+        "sequence" : 1,
+        "trueName" : "TEST-DEVICE-001"
+    }
+]""",
         # Device aliases
         "device_name_single": "NHD-400-RX's alias is display1",
         "device_alias": "NHD-400-TX-E4CE02104E55's alias is source1",
@@ -118,6 +415,19 @@ def malformed_responses() -> dict[str, str]:
         "ipsetting_missing_fields": "ipsetting is: ip4addr 192.168.1.1",  # Missing netmask and gateway
         # 13.2 Device Configuration errors
         "endpoint_alias_hostname_invalid_format": "Invalid format",
+        "endpoint_alias_hostname_quoted_device": '"DISPLAY1" does not exist.',
+        "device_status_missing_header": "No devices status info header",
+        "device_status_invalid_json": "devices status info:\n{invalid json}",
+        "device_status_missing_devices_key": 'devices status info:\n{"other_key": []}',
+        "device_status_no_json": "devices status info:\nno json content here",
+        "device_info_missing_header": "No devices json info header",
+        "device_info_invalid_json": "devices json info:\n{invalid json}",
+        "device_info_missing_devices_key": 'devices json info:\n{"other_key": []}',
+        "device_info_no_json": "devices json info:\nno json content here",
+        "device_json_string_missing_header": "No device json string header",
+        "device_json_string_invalid_json": "device json string:\n[invalid json}",
+        "device_json_string_not_array": 'device json string:\n{"not": "array"}',
+        "device_json_string_no_json": "device json string:\nno json content here",
         # 13.3 Stream Matrix Switching errors
         "matrix_malformed_assignment": "matrix information:\nSource1\nSource2 Display2",  # Missing RX for Source1
         "matrix_audio3_odd_lines": "matrix audio3 information:\nDisplay1\nSource1\nDisplay2",  # Missing TX
@@ -344,6 +654,599 @@ class TestEndpointAliasHostname:
 
         with pytest.raises(ValueError, match="Invalid name response"):
             EndpointAliasHostname.parse_single(response)
+
+    def test_parse_device_with_quotes_error(self, malformed_responses):
+        """Test parsing device name with quotes in error message."""
+        response = malformed_responses["endpoint_alias_hostname_quoted_device"]
+
+        with pytest.raises(DeviceNotFoundError) as exc_info:
+            EndpointAliasHostname.parse_single(response)
+
+        # Verify the quotes are stripped from the device name
+        assert exc_info.value.device_name == "DISPLAY1"
+
+
+class TestDeviceStatus:
+    """Test the DeviceStatus model parser."""
+
+    def test_parse_nhd_110_210_devices(self, api_v6_7_responses):
+        """Test parsing NHD-110/210 series device status with mixed TX/RX types."""
+        response = api_v6_7_responses["device_status_nhd_110_210"]
+        devices = DeviceStatus.parse(response)
+
+        assert len(devices) == 2
+
+        # Check TX device (SOURCE1)
+        tx_device = devices[0]
+        assert tx_device.aliasname == "SOURCE1"
+        assert tx_device.name == "NHD-140-TX-E4CE02102EE1"
+        assert tx_device.audio_stream_ip_address == "224.48.46.225"
+        assert tx_device.encoding_enable is True  # "true" -> bool
+        assert tx_device.hdmi_in_active is True  # "true" -> bool
+        assert tx_device.hdmi_in_frame_rate == 60  # "60" -> int
+        assert tx_device.line_out_audio_enable is False  # "false" -> bool
+        assert tx_device.resolution == "1920x1080"
+        assert tx_device.stream_frame_rate == 60  # "60" -> int
+        assert tx_device.stream_resolution == "1920x1080"
+        assert tx_device.video_stream_ip_address == "224.16.46.225"
+        # Check that RX-only fields are None for TX device
+        assert tx_device.audio_bitrate is None
+        assert tx_device.hdmi_out_active is None
+
+        # Check RX device (DISPLAY1)
+        rx_device = devices[1]
+        assert rx_device.aliasname == "DISPLAY1"
+        assert rx_device.name == "NHD-210-RX-E4CE02107132"
+        assert rx_device.audio_bitrate == 1536000  # "1536000" -> int
+        assert rx_device.audio_input_format == "lpcm"
+        assert rx_device.hdcp_status == "hdcp14"
+        assert rx_device.hdmi_out_active is True  # "true" -> bool
+        assert rx_device.hdmi_out_audio_enable is True  # "true" -> bool
+        assert rx_device.hdmi_out_frame_rate == 60  # "60" -> int
+        assert rx_device.hdmi_out_resolution == "1920x1080"
+        assert rx_device.line_out_audio_enable is True  # "true" -> bool
+        assert rx_device.stream_error_count == 0  # "0" -> int
+        assert rx_device.stream_frame_rate == 60  # "60" -> int
+        assert rx_device.stream_resolution == "1920x1080"
+        # Check that TX-only fields are None for RX device
+        assert rx_device.encoding_enable is None
+        assert rx_device.hdmi_in_active is None
+
+    def test_parse_nhd_400_devices(self, api_v6_7_responses):
+        """Test parsing NHD-400 series device status with different field set."""
+        response = api_v6_7_responses["device_status_nhd_400"]
+        devices = DeviceStatus.parse(response)
+
+        assert len(devices) == 2
+
+        # Check RX device
+        rx_device = devices[0]
+        assert rx_device.aliasname == "DISPLAY1"
+        assert rx_device.name == "NHD-400-RX-E4CE02103CB3"
+        assert rx_device.audio_bitrate == 3072000  # "3072000" -> int
+        assert rx_device.audio_output_format == "lpcm"
+        assert rx_device.hdcp == "hdcp22"
+        assert rx_device.hdmi_out_active is True  # "true" -> bool
+        assert rx_device.hdmi_out_frame_rate == 60  # "60" -> int
+        assert rx_device.hdmi_out_resolution == "1920x1080"
+
+        # Check TX device
+        tx_device = devices[1]
+        assert tx_device.aliasname == "SOURCE1"
+        assert tx_device.name == "NHD-400-TX-E4CE0210B6D4"
+        assert tx_device.audio_bitrate == 3072000  # "3072000" -> int
+        assert tx_device.audio_input_format == "lpcm"
+        assert tx_device.hdcp == "hdcp22"
+        assert tx_device.hdmi_in_active is True  # "true" -> bool
+        assert tx_device.hdmi_in_frame_rate == 60  # "60" -> int
+        assert tx_device.resolution == "1920x1080"
+
+    def test_parse_nhd_600_devices(self, api_v6_7_responses):
+        """Test parsing NHD-600 series device status with minimal field set."""
+        response = api_v6_7_responses["device_status_nhd_600"]
+        devices = DeviceStatus.parse(response)
+
+        assert len(devices) == 2
+
+        # Check RX device
+        rx_device = devices[0]
+        assert rx_device.aliasname == "DISPLAY1"
+        assert rx_device.name == "NHD-600-RX-D88039E5E525"
+        assert rx_device.hdcp == "hdcp14"
+        assert rx_device.hdmi_out_active is True  # "true" -> bool
+        assert rx_device.hdmi_out_frame_rate == 60  # "60" -> int
+        assert rx_device.hdmi_out_resolution == "1920x1080"
+
+        # Check TX device
+        tx_device = devices[1]
+        assert tx_device.aliasname == "SOURCE1"
+        assert tx_device.name == "NHD-600-TX-D88039E5ED1E"
+        assert tx_device.hdcp == "hdcp14"
+        assert tx_device.hdmi_in_active is True  # "true" -> bool
+        assert tx_device.hdmi_in_frame_rate == 60  # "60" -> int
+        assert tx_device.resolution == "1920x1080"
+
+    def test_parse_missing_header(self, malformed_responses):
+        """Test parsing with missing 'devices status info:' header."""
+        response = malformed_responses["device_status_missing_header"]
+
+        with pytest.raises(ValueError, match="No JSON content found"):
+            DeviceStatus.parse(response)
+
+    def test_parse_no_json_content(self, malformed_responses):
+        """Test parsing with no JSON content."""
+        response = malformed_responses["device_status_no_json"]
+
+        with pytest.raises(ValueError, match="No JSON content found"):
+            DeviceStatus.parse(response)
+
+    def test_parse_invalid_json(self, malformed_responses):
+        """Test parsing with invalid JSON."""
+        response = malformed_responses["device_status_invalid_json"]
+
+        with pytest.raises(ValueError, match="Invalid JSON in response"):
+            DeviceStatus.parse(response)
+
+    def test_parse_missing_devices_key(self, malformed_responses):
+        """Test parsing with missing 'devices status' key in JSON."""
+        response = malformed_responses["device_status_missing_devices_key"]
+
+        with pytest.raises(ValueError, match="No 'devices status' key found"):
+            DeviceStatus.parse(response)
+
+    def test_type_conversion_edge_cases(self):
+        """Test type conversion with edge case boolean values."""
+        response = """devices status info:
+            {
+                "devices status" : [
+                    {
+                        "aliasname" : "TEST1",
+                        "name" : "TEST-DEVICE",
+                        "hdmi in active" : "FALSE",
+                        "encoding enable" : "TRUE",
+                        "audio bitrate" : "0"
+                    }
+                ]
+            }"""
+        devices = DeviceStatus.parse(response)
+
+        assert len(devices) == 1
+        device = devices[0]
+        assert device.hdmi_in_active is False  # "FALSE" -> False
+        assert device.encoding_enable is True  # "TRUE" -> True
+        assert device.audio_bitrate == 0  # "0" -> 0
+
+
+class TestDeviceInfo:
+    """Test the DeviceInfo model parser."""
+
+    def test_parse_nhd_110_210_devices(self, api_v6_7_responses):
+        """Test parsing NHD-110/210 series device info with audio array and TX/RX types."""
+        response = api_v6_7_responses["device_info_nhd_110_210"]
+        devices = DeviceInfo.parse(response)
+
+        assert len(devices) == 2
+
+        # Check RX device (DISPLAY1) with audio array
+        rx_device = devices[0]
+        assert rx_device.aliasname == "DISPLAY1"
+        assert rx_device.name == "NHD-220-RX-E4CE02107DF5"
+        assert rx_device.edid is None  # "null" -> None
+        assert rx_device.gateway == ""
+        assert rx_device.hdcp is True  # JSON boolean -> bool
+        assert rx_device.ip4addr == "169.254.7.192"
+        assert rx_device.ip_mode == "autoip"
+        assert rx_device.mac == "e4:ce:02:10:7d:f5"
+        assert rx_device.netmask == "255.255.0.0"
+        assert rx_device.sourcein == "NHD-140-TX-E4CE02102EE1;"
+        assert rx_device.version == "v2.12.2"
+
+        # Check audio array parsing
+        assert rx_device.audio is not None
+        assert len(rx_device.audio) == 1
+        assert isinstance(rx_device.audio[0], DeviceInfoAudioOutput)
+        assert rx_device.audio[0].mute is False  # JSON boolean -> bool
+        assert rx_device.audio[0].name == "lineout1"
+
+        # Check that TX-only fields are None for RX device
+        assert rx_device.cbr_avg_bitrate is None
+        assert rx_device.enc_fps is None
+
+        # Check TX device (SOURCE1)
+        tx_device = devices[1]
+        assert tx_device.aliasname == "SOURCE1"
+        assert tx_device.name == "NHD-140-TX-E4CE02102EE3"
+        assert tx_device.cbr_avg_bitrate == 10000  # JSON number -> int
+        assert tx_device.edid == "00FFFFFFFFFFFF001C4501000100000008120103807341780ACF74A3574CB023094"
+        assert tx_device.enc_fps == 60  # JSON number -> int
+        assert tx_device.enc_gop == 60  # JSON number -> int
+        assert tx_device.enc_rc_mode == "vbr"
+        assert tx_device.fixqp_iqp == 25  # JSON number -> int
+        assert tx_device.fixqp_pqp == 25  # JSON number -> int
+        assert tx_device.gateway == "169.254.0.254"
+        assert tx_device.hdcp is True  # JSON boolean -> bool
+        assert tx_device.ip4addr == "169.254.85.242"
+        assert tx_device.ip_mode == "fixed"
+        assert tx_device.profile == "hp"
+        assert tx_device.sourcein == "unknown"
+        assert tx_device.transport_type == "raw"
+        assert tx_device.vbr_max_bitrate == 20000  # JSON number -> int
+        assert tx_device.vbr_max_qp == 51  # JSON number -> int
+        assert tx_device.vbr_min_qp == 0  # JSON number -> int
+        assert tx_device.version == "v1.0.6"
+
+        # Check that RX-only fields are None for TX device
+        assert tx_device.audio is None
+        assert tx_device.sinkpower is None
+
+    def test_parse_nhd_400_devices(self, api_v6_7_responses):
+        """Test parsing NHD-400 series device info with km_over_ip_enable."""
+        response = api_v6_7_responses["device_info_nhd_400"]
+        devices = DeviceInfo.parse(response)
+
+        assert len(devices) == 2
+
+        # Check RX device
+        rx_device = devices[0]
+        assert rx_device.aliasname == "DISPLAY1"
+        assert rx_device.name == "NHD-400-RX-E4CE02102EF0"
+        assert rx_device.edid is None  # "null" -> None
+        assert rx_device.gateway == ""
+        assert rx_device.ip4addr == "169.254.6.107"
+        assert rx_device.ip_mode == "dhcp"
+        assert rx_device.km_over_ip_enable is True  # "true" -> bool
+        assert rx_device.mac == "e4:ce:02:10:2e:f0"
+        assert rx_device.netmask == "255.255.0.0"
+        assert rx_device.version == "v0.10.1"
+        assert rx_device.videodetection == "lost"
+
+        # Check TX device
+        tx_device = devices[1]
+        assert tx_device.aliasname == "SOURCE1"
+        assert tx_device.name == "NHD-400-TX-E4CE02106E9E"
+        assert tx_device.audio_input_type == "auto"
+        assert tx_device.edid is None  # "null" -> None
+        assert tx_device.gateway == "169.254.0.254"
+        assert tx_device.ip4addr == "169.254.5.209"
+        assert tx_device.ip_mode == "autoip"
+        assert tx_device.km_over_ip_enable is True  # "true" -> bool
+        assert tx_device.mac == "e4:ce:02:10:6e:9e"
+        assert tx_device.netmask == "255.255.0.0"
+        assert tx_device.version == "v0.10.1"
+        assert tx_device.videodetection == "lost"
+
+    def test_parse_nhd_600_devices_with_sinkpower(self, api_v6_7_responses):
+        """Test parsing NHD-600 series device info with complex nested sinkpower object."""
+        response = api_v6_7_responses["device_info_nhd_600"]
+        devices = DeviceInfo.parse(response)
+
+        assert len(devices) == 2
+
+        # Check RX device with sinkpower object
+        rx_device = devices[0]
+        assert rx_device.aliasname == "DISPLAY1"
+        assert rx_device.name == "NHD-600-RX-D88039E5E525"
+        assert rx_device.analog_audio_source == "analog"
+        assert rx_device.edid == ""
+        assert rx_device.gateway == "0.0.0.0"
+        assert rx_device.hdmi_audio_source == "hdmi"
+        assert rx_device.ip4addr == "169.254.38.229"
+        assert rx_device.ip_mode == "dhcp"
+        assert rx_device.serial_param == "57600-8n1"
+        assert rx_device.temperature == 38  # JSON number -> int
+        assert rx_device.version == "3.6.0.0"
+        assert rx_device.video_mode == "fast_switch"
+        assert rx_device.video_stretch_type == "none"
+        assert rx_device.video_timing == "1080P@50"
+
+        # Check sinkpower nested object parsing
+        assert rx_device.sinkpower is not None
+        assert isinstance(rx_device.sinkpower, DeviceInfoSinkPower)
+        assert rx_device.sinkpower.mode == "CEC"
+
+        # Check CEC commands
+        assert rx_device.sinkpower.cec is not None
+        assert isinstance(rx_device.sinkpower.cec, DeviceInfoSinkPowerCecCommands)
+        assert rx_device.sinkpower.cec.onetouchplay == "4004"
+        assert rx_device.sinkpower.cec.standby == "ff36"
+
+        # Check RS232 commands
+        assert rx_device.sinkpower.rs232 is not None
+        assert isinstance(rx_device.sinkpower.rs232, DeviceInfoSinkPowerRs232Commands)
+        assert rx_device.sinkpower.rs232.mode == "ascii"
+        assert rx_device.sinkpower.rs232.onetouchplay == "!POWERON~"
+        assert rx_device.sinkpower.rs232.param == "115200-8n1"
+        assert rx_device.sinkpower.rs232.standby == "!POWROFF~"
+
+        # Check TX device with many technical fields
+        tx_device = devices[1]
+        assert tx_device.aliasname == "SOURCE1"
+        assert tx_device.name == "NHD-600-TX-D88039E5E401"
+        assert tx_device.analog_audio_direction == "INPUT"
+        assert tx_device.bandwidth_adjust_mode == 0  # JSON number -> int
+        assert tx_device.bit_perpixel == 8  # JSON number -> int
+        assert tx_device.color_space == "RGB"
+        assert tx_device.edid == "00ffffffffffff004dd903f901010101011b0103806c3d780a0dc9a05747982712484c"
+        assert tx_device.gateway == "0.0.0.0"
+        assert tx_device.hdcp14_enable is True  # JSON boolean -> bool
+        assert tx_device.hdcp22_enable is True  # JSON boolean -> bool
+        assert tx_device.ip4addr == "169.254.2.228"
+        assert tx_device.ip_mode == "dhcp"
+        assert tx_device.serial_param == "57600-8n1"
+        assert tx_device.stream0_enable is True  # JSON boolean -> bool
+        assert tx_device.stream0fps_by2_enable is False  # JSON boolean -> bool
+        assert tx_device.stream1_enable is True  # JSON boolean -> bool
+        assert tx_device.stream1_scale == "960x544"
+        assert tx_device.stream1fps_by2_enable is False  # JSON boolean -> bool
+        assert tx_device.temperature == 42  # JSON number -> int
+        assert tx_device.version == "3.6.0.0"
+        assert tx_device.video_input is True  # JSON boolean -> bool
+        assert tx_device.video_source == "hdmi"
+        assert tx_device.video_timing == "1920x1080P@60"
+
+    def test_parse_missing_header(self, malformed_responses):
+        """Test parsing with missing 'devices json info:' header."""
+        response = malformed_responses["device_info_missing_header"]
+
+        with pytest.raises(ValueError, match="No JSON content found"):
+            DeviceInfo.parse(response)
+
+    def test_parse_no_json_content(self, malformed_responses):
+        """Test parsing with no JSON content."""
+        response = malformed_responses["device_info_no_json"]
+
+        with pytest.raises(ValueError, match="No JSON content found"):
+            DeviceInfo.parse(response)
+
+    def test_parse_invalid_json(self, malformed_responses):
+        """Test parsing with invalid JSON."""
+        response = malformed_responses["device_info_invalid_json"]
+
+        with pytest.raises(ValueError, match="Invalid JSON in response"):
+            DeviceInfo.parse(response)
+
+    def test_parse_missing_devices_key(self, malformed_responses):
+        """Test parsing with missing 'devices' key in JSON."""
+        response = malformed_responses["device_info_missing_devices_key"]
+
+        with pytest.raises(ValueError, match="No 'devices' key found"):
+            DeviceInfo.parse(response)
+
+    def test_nested_object_edge_cases(self):
+        """Test parsing with edge cases for nested objects."""
+        response = """devices json info:
+{
+    "devices" : [
+        {
+            "aliasname" : "TEST1",
+            "name" : "TEST-DEVICE",
+            "audio" : [],
+            "sinkpower" : {
+                "mode" : "NONE"
+            }
+        }
+    ]
+}"""
+        devices = DeviceInfo.parse(response)
+
+        assert len(devices) == 1
+        device = devices[0]
+        assert device.audio == []  # Empty audio array
+        assert device.sinkpower is not None
+        assert device.sinkpower.mode == "NONE"
+        assert device.sinkpower.cec is None
+        assert device.sinkpower.rs232 is None
+
+    def test_type_conversion_edge_cases(self):
+        """Test type conversion with edge cases for boolean and int fields."""
+        response = """devices json info:
+{
+    "devices" : [
+        {
+            "aliasname" : "TEST1",
+            "name" : "TEST-DEVICE",
+            "hdcp14_enable" : false,
+            "stream0_enable" : true,
+            "temperature" : 0,
+            "gateway" : ""
+        }
+    ]
+}"""
+        devices = DeviceInfo.parse(response)
+
+        assert len(devices) == 1
+        device = devices[0]
+        assert device.hdcp14_enable is False  # JSON false -> False
+        assert device.stream0_enable is True  # JSON true -> True
+        assert device.temperature == 0  # JSON 0 -> 0
+        assert device.gateway == ""  # Empty string stays empty
+
+
+class TestDeviceJsonString:
+    """Test the DeviceJsonString model parser."""
+
+    def test_parse_mixed_device_types(self, api_v6_7_responses):
+        """Test parsing mixed TX/RX devices with different optional fields."""
+        response = api_v6_7_responses["device_json_string_mixed"]
+        devices = DeviceJsonString.parse(response)
+
+        assert len(devices) == 3
+
+        # Check first TX device (SOURCE1)
+        tx_device1 = devices[0]
+        assert tx_device1.aliasName == "SOURCE1"
+        assert tx_device1.deviceType == "Transmitter"
+        assert tx_device1.ip == "169.254.232.229"
+        assert tx_device1.online is True  # JSON boolean -> bool
+        assert tx_device1.sequence == 1  # JSON number -> int
+        assert tx_device1.trueName == "NHD-140-TX-E4CE02102EE1"
+        assert tx_device1.nameoverlay is None  # Not present for this device
+        assert tx_device1.txName is None  # TX devices don't have txName
+
+        # Check group array parsing
+        assert len(tx_device1.group) == 1
+        assert isinstance(tx_device1.group[0], DeviceJsonStringGroup)
+        assert tx_device1.group[0].name == "ungrouped"
+        assert tx_device1.group[0].sequence == 1  # JSON number -> int
+
+        # Check RX device (DISPLAY1) with txName
+        rx_device = devices[1]
+        assert rx_device.aliasName == "DISPLAY1"
+        assert rx_device.deviceType == "Receiver"
+        assert rx_device.ip == "169.254.148.121"
+        assert rx_device.online is True  # JSON boolean -> bool
+        assert rx_device.sequence == 2  # JSON number -> int
+        assert rx_device.trueName == "NHD-140-RX-E4CE02102EE2"
+        assert rx_device.txName == "SOURCE1"  # RX-specific field
+        assert rx_device.nameoverlay is None  # RX devices don't have nameoverlay
+
+        # Check group with different name
+        assert len(rx_device.group) == 1
+        assert rx_device.group[0].name == "MainDisplays"
+        assert rx_device.group[0].sequence == 2  # JSON number -> int
+
+        # Check second TX device (SOURCE7) with nameoverlay
+        tx_device2 = devices[2]
+        assert tx_device2.aliasName == "SOURCE7"
+        assert tx_device2.deviceType == "Transmitter"
+        assert tx_device2.ip == "169.254.1.1"
+        assert tx_device2.nameoverlay is True  # JSON boolean -> bool, 600 series specific
+        assert tx_device2.online is True  # JSON boolean -> bool
+        assert tx_device2.sequence == 7  # JSON number -> int
+        assert tx_device2.trueName == "NHD-600-TX-D88039E5E401"
+        assert tx_device2.txName is None  # TX devices don't have txName
+
+    def test_parse_single_device(self, api_v6_7_responses):
+        """Test parsing single device with offline status."""
+        response = api_v6_7_responses["device_json_string_single"]
+        devices = DeviceJsonString.parse(response)
+
+        assert len(devices) == 1
+        device = devices[0]
+
+        assert device.aliasName == "TEST1"
+        assert device.deviceType == "Transmitter"
+        assert device.ip == "192.168.1.100"
+        assert device.online is False  # JSON boolean -> bool
+        assert device.sequence == 1  # JSON number -> int
+        assert device.trueName == "TEST-DEVICE-001"
+        assert device.nameoverlay is None
+        assert device.txName is None
+
+        # Check group parsing
+        assert len(device.group) == 1
+        assert device.group[0].name == "testgroup"
+        assert device.group[0].sequence == 1  # JSON number -> int
+
+    def test_parse_missing_header(self, malformed_responses):
+        """Test parsing with missing 'device json string:' header."""
+        response = malformed_responses["device_json_string_missing_header"]
+
+        with pytest.raises(ValueError, match="No JSON array content found"):
+            DeviceJsonString.parse(response)
+
+    def test_parse_no_json_content(self, malformed_responses):
+        """Test parsing with no JSON content."""
+        response = malformed_responses["device_json_string_no_json"]
+
+        with pytest.raises(ValueError, match="No JSON array content found"):
+            DeviceJsonString.parse(response)
+
+    def test_parse_invalid_json(self, malformed_responses):
+        """Test parsing with invalid JSON."""
+        response = malformed_responses["device_json_string_invalid_json"]
+
+        with pytest.raises(ValueError, match="Invalid JSON in response"):
+            DeviceJsonString.parse(response)
+
+    def test_parse_not_json_array(self, malformed_responses):
+        """Test parsing when JSON is not an array."""
+        response = malformed_responses["device_json_string_not_array"]
+
+        with pytest.raises(ValueError, match="No JSON array content found"):
+            DeviceJsonString.parse(response)
+
+    def test_empty_group_array_edge_case(self):
+        """Test parsing with empty group array."""
+        response = """device json string:
+[
+    {
+        "aliasName" : "TEST1",
+        "deviceType" : "Transmitter",
+        "group" : [],
+        "ip" : "192.168.1.100",
+        "online" : true,
+        "sequence" : 1,
+        "trueName" : "TEST-DEVICE"
+    }
+]"""
+        devices = DeviceJsonString.parse(response)
+
+        assert len(devices) == 1
+        device = devices[0]
+        assert device.group == []  # Empty group array
+
+    def test_type_conversion_edge_cases(self):
+        """Test type conversion edge cases for boolean and int fields."""
+        response = """device json string:
+[
+    {
+        "aliasName" : "TEST1",
+        "deviceType" : "Transmitter",
+        "group" : [
+            {
+                "name" : "testgroup",
+                "sequence" : 0
+            }
+        ],
+        "ip" : "192.168.1.100",
+        "online" : false,
+        "sequence" : 0,
+        "trueName" : "TEST-DEVICE",
+        "nameoverlay" : true
+    }
+]"""
+        devices = DeviceJsonString.parse(response)
+
+        assert len(devices) == 1
+        device = devices[0]
+        assert device.online is False  # JSON false -> False
+        assert device.sequence == 0  # JSON 0 -> 0
+        assert device.nameoverlay is True  # JSON true -> True
+        assert device.group[0].sequence == 0  # Group sequence 0 -> 0
+
+    def test_parse_with_unknown_fields(self):
+        """Test parsing with unknown fields not in the dataclass."""
+        response = """device json string:
+[
+    {
+        "aliasName" : "TEST1",
+        "deviceType" : "Transmitter",
+        "group" : [
+            {
+                "name" : "testgroup",
+                "sequence" : 1
+            }
+        ],
+        "ip" : "192.168.1.100",
+        "online" : true,
+        "sequence" : 1,
+        "trueName" : "TEST-DEVICE",
+        "unknownField" : "someValue"
+    }
+]"""
+        # Unknown fields should be silently filtered out during parsing
+        devices = DeviceJsonString.parse(response)
+
+        assert len(devices) == 1
+        device = devices[0]
+        assert device.aliasName == "TEST1"
+        assert device.deviceType == "Transmitter"
+        assert device.ip == "192.168.1.100"
+        assert device.online is True
+        assert device.sequence == 1
+        assert device.trueName == "TEST-DEVICE"
+        # Unknown fields are silently ignored
 
 
 # =============================================================================

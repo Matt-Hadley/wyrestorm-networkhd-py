@@ -1,7 +1,8 @@
 """NetworkHD API query response data models."""
 
-from dataclasses import dataclass
-from typing import Literal, TypeVar, cast
+import json
+from dataclasses import dataclass, fields
+from typing import Literal, TypeVar, cast, get_args, get_origin
 
 from ..exceptions import DeviceNotFoundError
 
@@ -150,8 +151,6 @@ class Version:
             raise ValueError(f"Could not find API version in response: {response}")
         if web_version is None:
             raise ValueError(f"Could not find System version in response: {response}")
-        if core_version is None:
-            raise ValueError(f"Could not find core version in response: {response}")
 
         return cls(api_version=api_version, web_version=web_version, core_version=core_version)
 
@@ -353,6 +352,534 @@ class EndpointAliasHostname:
             if line and "'s alias is " in line:
                 names.append(cls.parse_single(line))
         return names
+
+
+@dataclass
+class DeviceJsonStringGroup:
+    """Group configuration for device json string"""
+
+    name: str
+    sequence: int
+
+
+@dataclass
+class DeviceJsonString:
+    """Device information from 'config get devicejsonstring'"""
+
+    # Required fields
+    aliasName: str  # Note: API uses camelCase, keeping original field name
+    deviceType: str
+    group: list[DeviceJsonStringGroup]
+    ip: str
+    online: bool
+    sequence: int
+    trueName: str
+
+    # Optional fields
+    nameoverlay: bool | None = None  # TX only (600 series)
+    txName: str | None = None  # RX only
+
+    @classmethod
+    def parse(cls, response: str) -> list["DeviceJsonString"]:
+        """Parse 'config get devicejsonstring' response
+
+        Args:
+            response: The raw response string from the device
+
+        Returns:
+            list[DeviceJsonString]: List of parsed device json string objects
+
+        Notes:
+            Underlying NetworkHD API raw response format:
+                ```
+                device json string:
+                [
+                    {
+                        "aliasName" : "<alias>",
+                        "deviceType" : "Transmitter",
+                        "group" : [
+                            {
+                                "name" : "ungrouped",
+                                "sequence" : 1
+                            }
+                        ],
+                        "ip" : "<ip>",
+                        "online" : true,
+                        "sequence" : 1,
+                        "trueName" : "<hostname>"
+                    },
+                    ... more devices ...
+                ]
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                device json string:
+                [
+                    {
+                        "aliasName" : "SOURCE1",
+                        "deviceType" : "Transmitter",
+                        "group" : [
+                            {
+                                "name" : "ungrouped",
+                                "sequence" : 1
+                            }
+                        ],
+                        "ip" : "169.254.232.229",
+                        "online" : true,
+                        "sequence" : 1,
+                        "trueName" : "NHD-140-TX-E4CE02102EE1"
+                    }
+                ]
+                ```
+        """
+        # Find the JSON content (starts with '[')
+        json_start = response.find("[")
+        if json_start == -1:
+            raise ValueError(f"No JSON array content found in response: {response}")
+
+        json_content = response[json_start:]
+
+        try:
+            data = json.loads(json_content)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in response: {e}") from e
+
+        devices = []
+
+        # Get field type information from the dataclass
+        field_types = {field.name: field.type for field in fields(cls)}
+
+        for device_data in data:
+            # Handle special nested objects and type conversion
+            converted_data = {}
+            for key, value in device_data.items():
+                # Handle special nested objects
+                if key == "group" and isinstance(value, list):
+                    # Parse group array
+                    groups = []
+                    for group_item in value:
+                        groups.append(
+                            DeviceJsonStringGroup(
+                                name=group_item.get("name", ""), sequence=group_item.get("sequence", 0)
+                            )
+                        )
+                    converted_data[key] = groups
+                else:
+                    # Get the expected type for this field
+                    expected_type = field_types.get(key)
+                    if expected_type is None:
+                        # Field not in dataclass, skip it
+                        continue
+
+                    # Handle Optional[T] types (Union[T, None])
+                    origin = get_origin(expected_type)
+                    if origin is type(int | str):  # Union type
+                        args = get_args(expected_type)
+                        # Find the non-None type
+                        actual_type = next((arg for arg in args if arg is not type(None)), str)
+                    else:
+                        actual_type = expected_type
+
+                    # Convert value based on actual type
+                    if actual_type is int:
+                        converted_data[key] = int(value) if value is not None else None
+                    elif actual_type is bool:
+                        converted_data[key] = value
+                    else:
+                        # Keep as string for str and other types
+                        converted_data[key] = value
+
+            devices.append(cls(**converted_data))
+
+        return devices
+
+
+@dataclass
+class DeviceInfoAudioOutput:
+    """Audio output configuration from device info"""
+
+    mute: bool
+    name: str
+
+
+@dataclass
+class DeviceInfoSinkPowerCecCommands:
+    """CEC command configuration for device info sinkpower"""
+
+    onetouchplay: str
+    standby: str
+
+
+@dataclass
+class DeviceInfoSinkPowerRs232Commands:
+    """RS232 command configuration for device info sinkpower"""
+
+    mode: str
+    onetouchplay: str
+    param: str
+    standby: str
+
+
+@dataclass
+class DeviceInfoSinkPower:
+    """Sink power configuration for RX devices"""
+
+    mode: str
+    cec: DeviceInfoSinkPowerCecCommands | None = None
+    rs232: DeviceInfoSinkPowerRs232Commands | None = None
+
+
+@dataclass
+class DeviceInfo:
+    """Device information from 'config get device info'"""
+
+    # Required fields
+    aliasname: str
+    name: str
+
+    # Common fields (all device types)
+    edid: str | None = None
+    gateway: str | None = None
+    ip4addr: str | None = None
+    ip_mode: str | None = None
+    mac: str | None = None
+    netmask: str | None = None
+    version: str | None = None
+
+    # RX-only fields
+    audio: list[DeviceInfoAudioOutput] | None = None
+    sourcein: str | None = None
+    analog_audio_source: str | None = None
+    hdmi_audio_source: str | None = None
+    sinkpower: DeviceInfoSinkPower | None = None
+    video_mode: str | None = None
+    video_stretch_type: str | None = None
+    video_timing: str | None = None
+
+    # TX-only fields
+    cbr_avg_bitrate: int | None = None
+    enc_fps: int | None = None
+    enc_gop: int | None = None
+    enc_rc_mode: str | None = None
+    fixqp_iqp: int | None = None
+    fixqp_pqp: int | None = None
+    profile: str | None = None
+    transport_type: str | None = None
+    vbr_max_bitrate: int | None = None
+    vbr_max_qp: int | None = None
+    vbr_min_qp: int | None = None
+    audio_input_type: str | None = None
+    analog_audio_direction: str | None = None
+    bandwidth_adjust_mode: int | None = None
+    bit_perpixel: int | None = None
+    color_space: str | None = None
+    stream0_enable: bool | None = None
+    stream0fps_by2_enable: bool | None = None
+    stream1_enable: bool | None = None
+    stream1_scale: str | None = None
+    stream1fps_by2_enable: bool | None = None
+    video_input: bool | None = None
+    video_source: str | None = None
+
+    # NHD-400 specific
+    km_over_ip_enable: bool | None = None
+    videodetection: str | None = None
+
+    # NHD-600 specific
+    serial_param: str | None = None
+    temperature: int | None = None
+    genlock_scaling_resolution: str | None = None
+    hdcp14_enable: bool | None = None
+    hdcp22_enable: bool | None = None
+
+    # Legacy/deprecated fields
+    hdcp: bool | None = None
+
+    @classmethod
+    def parse(cls, response: str) -> list["DeviceInfo"]:
+        """Parse 'config get device info' response
+
+        Args:
+            response: The raw response string from the device
+
+        Returns:
+            list[DeviceInfo]: List of parsed device information objects
+
+        Notes:
+            Underlying NetworkHD API raw response format:
+                ```
+                devices json info:
+                {
+                "devices" : [
+                    {
+                        "aliasname" : "<alias>",
+                        "name" : "<hostname>",
+                        ... other fields ...
+                    },
+                    ... more devices ...
+                ]
+                }
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                devices json info:
+                {
+                "devices" : [
+                    {
+                        "aliasname" : "DISPLAY1",
+                        "edid" : "null",
+                        "gateway" : "",
+                        "ip4addr" : "169.254.7.192",
+                        "name" : "NHD-220-RX-E4CE02107DF5"
+                    }
+                ]
+                }
+                ```
+        """
+        # Find the JSON content
+        json_start = response.find("{")
+        if json_start == -1:
+            raise ValueError(f"No JSON content found in response: {response}")
+
+        json_content = response[json_start:]
+
+        try:
+            data = json.loads(json_content)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in response: {e}") from e
+
+        if "devices" not in data:
+            raise ValueError(f"No 'devices' key found in response: {response}")
+
+        devices = []
+
+        # Get field type information from the dataclass
+        field_types = {field.name: field.type for field in fields(cls)}
+
+        for device_data in data["devices"]:
+            # Check for error responses in JSON data
+            if "error" in device_data:
+                device_name = device_data.get("name", "unknown")
+                error_message = device_data.get("error", "unknown error")
+                from ..exceptions import DeviceQueryError
+
+                raise DeviceQueryError(device_name, error_message)
+
+            # Convert API field names from space-separated to snake_case and handle type conversion
+            converted_data = {}
+            for key, value in device_data.items():
+                # Convert "audio stream ip address" -> "audio_stream_ip_address", etc.
+                snake_case_key = key.replace(" ", "_")
+
+                # Handle special nested objects
+                if snake_case_key == "audio" and isinstance(value, list):
+                    # Parse audio output array
+                    audio_outputs = []
+                    for audio_item in value:
+                        audio_outputs.append(
+                            DeviceInfoAudioOutput(mute=audio_item.get("mute", False), name=audio_item.get("name", ""))
+                        )
+                    converted_data[snake_case_key] = audio_outputs
+                elif snake_case_key == "sinkpower" and isinstance(value, dict):
+                    # Parse sinkpower nested object
+                    cec_data = value.get("cec")
+                    rs232_data = value.get("rs232")
+
+                    cec_commands = None
+                    if cec_data:
+                        cec_commands = DeviceInfoSinkPowerCecCommands(
+                            onetouchplay=cec_data.get("onetouchplay", ""), standby=cec_data.get("standby", "")
+                        )
+
+                    rs232_commands = None
+                    if rs232_data:
+                        rs232_commands = DeviceInfoSinkPowerRs232Commands(
+                            mode=rs232_data.get("mode", ""),
+                            onetouchplay=rs232_data.get("onetouchplay", ""),
+                            param=rs232_data.get("param", ""),
+                            standby=rs232_data.get("standby", ""),
+                        )
+
+                    converted_data[snake_case_key] = DeviceInfoSinkPower(
+                        mode=value.get("mode", ""), cec=cec_commands, rs232=rs232_commands
+                    )
+                else:
+                    # Get the expected type for this field
+                    expected_type = field_types.get(snake_case_key)
+                    if expected_type is None:
+                        # Field not in dataclass, keep as string
+                        converted_data[snake_case_key] = value
+                        continue
+
+                    # Handle Optional[T] types (Union[T, None])
+                    origin = get_origin(expected_type)
+                    if origin is type(int | str):  # Union type
+                        args = get_args(expected_type)
+                        # Find the non-None type
+                        actual_type = next((arg for arg in args if arg is not type(None)), str)
+                    else:
+                        actual_type = expected_type
+
+                    # Convert value based on actual type
+                    if actual_type is int:
+                        converted_data[snake_case_key] = int(value) if value != "" else None
+                    elif actual_type is bool:
+                        converted_data[snake_case_key] = value.lower() == "true" if isinstance(value, str) else value
+                    else:
+                        # Keep as string for str and other types
+                        if value == "null":
+                            converted_data[snake_case_key] = None
+                        else:
+                            converted_data[snake_case_key] = value
+
+            devices.append(cls(**converted_data))
+
+        return devices
+
+
+@dataclass
+class DeviceStatus:
+    """Device status information from 'config get device status'"""
+
+    # Common fields (all device types)
+    aliasname: str
+    name: str
+
+    # Common fields (NHD-110/200/210 series)
+    line_out_audio_enable: bool | None = None
+    stream_frame_rate: int | None = None
+    stream_resolution: str | None = None
+
+    # RX only fields (NHD-110/200/210 series)
+    audio_bitrate: int | None = None
+    audio_input_format: str | None = None
+    hdcp_status: str | None = None  # NHD-110/200/210 series uses "hdcp status"
+    hdmi_out_active: bool | None = None
+    hdmi_out_audio_enable: bool | None = None
+    hdmi_out_frame_rate: int | None = None
+    hdmi_out_resolution: str | None = None
+    stream_error_count: int | None = None
+
+    # TX only fields (NHD-110/200/210 series)
+    audio_stream_ip_address: str | None = None
+    encoding_enable: bool | None = None
+    hdmi_in_active: bool | None = None
+    hdmi_in_frame_rate: int | None = None
+    resolution: str | None = None
+    video_stream_ip_address: str | None = None
+
+    # NHD-400 series fields
+    hdcp: str | None = None  # NHD-400/600 series uses "hdcp"
+    audio_output_format: str | None = None  # NHD-400 RX only
+
+    @classmethod
+    def parse(cls, response: str) -> list["DeviceStatus"]:
+        """Parse 'config get device status' response
+
+        Args:
+            response: The raw response string from the device
+
+        Returns:
+            list[DeviceStatus]: List of parsed device status information objects
+
+        Notes:
+            Underlying NetworkHD API raw response format:
+                ```
+                devices status info:
+                {
+                "devices status" : [
+                    {
+                        "aliasname" : "<alias>",
+                        "name" : "<hostname>",
+                        ... other fields ...
+                    },
+                    ... more devices ...
+                ]
+                }
+                ```
+
+            Underlying NetworkHD API raw response example:
+                ```
+                devices status info:
+                {
+                "devices status" : [
+                    {
+                        "aliasname" : "DISPLAY1",
+                        "hdcp" : "hdcp14",
+                        "hdmi out active" : "true",
+                        "hdmi out frame rate" : "60",
+                        "hdmi out resolution" : "1920x1080",
+                        "name" : "NHD-600-RX-D88039E5E525"
+                    }
+                ]
+                }
+                ```
+        """
+        # Find the JSON content
+        json_start = response.find("{")
+        if json_start == -1:
+            raise ValueError(f"No JSON content found in response: {response}")
+
+        json_content = response[json_start:]
+
+        try:
+            data = json.loads(json_content)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in response: {e}") from e
+
+        if "devices status" not in data:
+            raise ValueError(f"No 'devices status' key found in response: {response}")
+
+        devices = []
+
+        # Get field type information from the dataclass
+        field_types = {field.name: field.type for field in fields(cls)}
+
+        for device_data in data["devices status"]:
+            # Check for error responses in JSON data
+            if "error" in device_data:
+                device_name = device_data.get("name", "unknown")
+                error_message = device_data.get("error", "unknown error")
+                from ..exceptions import DeviceQueryError
+
+                raise DeviceQueryError(device_name, error_message)
+
+            # Convert API field names from space-separated to snake_case and handle type conversion
+            converted_data = {}
+            for key, value in device_data.items():
+                # Convert "audio bitrate" -> "audio_bitrate", "hdmi out active" -> "hdmi_out_active", etc.
+                snake_case_key = key.replace(" ", "_")
+
+                # Get the expected type for this field
+                expected_type = field_types.get(snake_case_key)
+                if expected_type is None:
+                    # Field not in dataclass, keep as string
+                    converted_data[snake_case_key] = value
+                    continue
+
+                # Handle Optional[T] types (Union[T, None])
+                origin = get_origin(expected_type)
+                if origin is type(int | str):  # Union type
+                    args = get_args(expected_type)
+                    # Find the non-None type
+                    actual_type = next((arg for arg in args if arg is not type(None)), str)
+                else:
+                    actual_type = expected_type
+
+                # Convert value based on actual type
+                if actual_type is int:
+                    converted_data[snake_case_key] = int(value)
+                elif actual_type is bool:
+                    converted_data[snake_case_key] = value.lower() == "true"
+                else:
+                    # Keep as string for str and other types
+                    converted_data[snake_case_key] = value
+
+            devices.append(cls(**converted_data))
+
+        return devices
 
 
 # =============================================================================
