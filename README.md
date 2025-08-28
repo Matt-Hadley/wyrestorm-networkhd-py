@@ -55,8 +55,18 @@ async def main():
         api = NHDAPI(client)
 
         # Execute commands and get typed responses
-        device_list = await api.api_query.get_devicelist()
+        device_list = await api.api_query.config_get_devicelist()
         matrix_info = await api.api_query.matrix_get()
+
+        # Query device information with typed responses
+        devices = await api.api_query.config_get_device_info()
+        for device in devices:
+            print(f"Device {device.aliasname} ({device.name}) - IP: {device.ip4addr}")
+
+        # Query device status with typed responses
+        status_list = await api.api_query.config_get_device_status()
+        for status in status_list:
+            print(f"Device {status.aliasname} - HDMI out: {status.hdmi_out_active}")
         await api.video_wall.scene_active("office", "splitmode")
 
         # Real-time notifications are automatically handled in the background

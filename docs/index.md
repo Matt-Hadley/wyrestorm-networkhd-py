@@ -73,8 +73,18 @@ async def main():
         api = NHDAPI(client)
 
         # Execute commands and get typed responses
-        device_list = await api.api_query.get_devicelist()
+        device_list = await api.api_query.config_get_devicelist()
         matrix_info = await api.api_query.matrix_get()
+
+        # Query device information with typed responses
+        devices = await api.api_query.config_get_device_info()
+        for device in devices:
+            print(f"Device {device.aliasname} ({device.name}) - IP: {device.ip4addr}")
+
+        # Query device status with typed responses
+        status_list = await api.api_query.config_get_device_status()
+        for status in status_list:
+            print(f"Device {status.aliasname} - HDMI out: {status.hdmi_out_active}")
         await api.video_wall.scene_active("office", "splitmode")
 
 # Run the async function
@@ -139,6 +149,51 @@ SSH Client:
 
 The following examples assume you have a client connected as shown in the [Basic Usage](#basic-usage) section above. All
 code snippets should be placed inside the `async with client:` block.
+
+### Typed Device Queries
+
+The library provides strongly-typed device query responses for better IDE support and type safety:
+
+```python
+# Query device information with typed responses
+devices = await api.api_query.config_get_device_info()
+for device in devices:
+    print(f"Device: {device.aliasname}")
+    print(f"  Name: {device.name}")
+    print(f"  IP: {device.ip4addr}")
+    print(f"  Version: {device.version}")
+
+    # TX-only fields (automatically None for RX devices)
+    if device.cbr_avg_bitrate:
+        print(f"  CBR Bitrate: {device.cbr_avg_bitrate}")
+
+    # RX-only fields (automatically None for TX devices)
+    if device.audio:
+        print(f"  Audio Outputs: {[out.name for out in device.audio]}")
+
+# Query device status with typed responses
+status_list = await api.api_query.config_get_device_status()
+for status in status_list:
+    print(f"Device: {status.aliasname}")
+
+    # Handle different device series automatically
+    if status.hdcp:  # NHD-400/600 series
+        print(f"  HDCP: {status.hdcp}")
+    elif status.hdcp_status:  # NHD-110/200/210 series
+        print(f"  HDCP Status: {status.hdcp_status}")
+
+    # Boolean fields are properly typed
+    if status.hdmi_out_active:
+        print(f"  HDMI Output: {'Active' if status.hdmi_out_active else 'Inactive'}")
+
+# Query JSON device string with typed responses
+json_devices = await api.api_query.config_get_devicejsonstring()
+for device in json_devices:
+    print(f"Device: {device.aliasName} ({'Online' if device.online else 'Offline'})")
+    print(f"  Type: {device.deviceType}")
+    print(f"  IP: {device.ip}")
+    print(f"  Groups: {[g.name for g in device.group]}")
+```
 
 ### Matrix Switching Examples
 

@@ -217,7 +217,7 @@ serial.serialutil.SerialException: could not open port /dev/ttyUSB0
 
            # Run commands concurrently
            tasks = [
-               api.api_query.get_devicelist(),
+               api.api_query.config_get_devicelist(),
                api.api_query.matrix_get(),
                api.api_query.config_get_version()
            ]
@@ -396,12 +396,18 @@ serial.serialutil.SerialException: could not open port /dev/ttyUSB0
 
 2. **Use device-specific command variants:**
    ```python
-   # Some commands may have different names on different models
+   # Different device models may return different field sets
    try:
-       result = await api.api_query.get_devicelist()
-   except Exception:
-       # Try alternative command
-       result = await api.api_query.config_get_devicelist()
+       # Query device info and handle different device types
+       devices = await api.api_query.config_get_device_info()
+       for device in devices:
+           # Handle NHD-400 vs NHD-600 series differences
+           if device.hdcp:  # NHD-400/600 series
+               print(f"Device {device.aliasname}: HDCP={device.hdcp}")
+           elif device.hdcp_status:  # NHD-110/200 series
+               print(f"Device {device.aliasname}: HDCP Status={device.hdcp_status}")
+   except Exception as e:
+       print(f"Device query failed: {e}")
    ```
 
 ### Network Configuration Issues
