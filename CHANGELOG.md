@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v1.1.1...v2.0.0) (2025-08-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* Device query methods now return typed dataclass objects instead of raw dictionaries
+
+### Features
+
+* replace device query dict returns with typed dataclasses ([3db36e9](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/3db36e986434304d2931a619bd5912a8d5a81ecd))
+
+
+### Documentation
+
+* add comprehensive troubleshooting documentation ([a3785b3](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/a3785b397e0e53ed4224a7e00bf581484e16a488))
+* update examples for typed device query methods ([bf02bdb](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/bf02bdbca0c07a0dc5c6ded8fcc203c2934e482c))
+
 ## [1.1.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v1.1.0...v1.1.1) (2025-08-24)
 
 
