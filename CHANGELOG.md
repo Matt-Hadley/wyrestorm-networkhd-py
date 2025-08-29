@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.0.1...v2.1.0) (2025-08-29)
+
+
+### Features
+
+* add configurable response_line_timeout parameter ([e654961](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/e65496150aca26472d82ecb8a55b06f8b412ed0e))
+
 ## [2.0.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.0.0...v2.0.1) (2025-08-29)
 
 
