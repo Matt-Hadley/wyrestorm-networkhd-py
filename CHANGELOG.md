@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.0.0...v2.0.1) (2025-08-29)
+
+
+### Bug Fixes
+
+* apply response parsing to strip welcome banner consistently ([6e39896](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/6e39896827eb87083e0c58116c434ab31293bfcc))
+
 ## [2.0.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v1.1.1...v2.0.0) (2025-08-28)
 
 
