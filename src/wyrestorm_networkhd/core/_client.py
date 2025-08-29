@@ -350,8 +350,9 @@ class _BaseNetworkHDClient(ABC):
                         # No more lines coming
                         break
 
-                # Join all response lines
-                return "\n".join(response_lines) if response_lines else ""
+                # Join all response lines and parse response
+                raw_response = "\n".join(response_lines) if response_lines else ""
+                return self._parse_response(raw_response)
             except Exception:  # noqa: B904
                 self._record_command_failed()
                 raise
