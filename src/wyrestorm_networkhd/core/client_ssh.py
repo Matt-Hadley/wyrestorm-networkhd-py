@@ -205,12 +205,15 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
 
         return connected
 
-    async def send_command(self, command: str, response_timeout: float = 10.0) -> str:
+    async def send_command(
+        self, command: str, response_timeout: float = 10.0, response_line_timeout: float = 1.0
+    ) -> str:
         """Send a command to the device via SSH and get the response.
 
         Args:
             command: The command string to send.
             response_timeout: Maximum time to wait for response in seconds.
+            response_line_timeout: Maximum time to wait for each response line in seconds.
 
         Returns:
             The response string from the device.
@@ -234,7 +237,9 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
             # This will be called by the message dispatcher
             return None
 
-        response = await self._send_command_generic(command.strip(), send_func, receive_func, response_timeout)
+        response = await self._send_command_generic(
+            command.strip(), send_func, receive_func, response_timeout, response_line_timeout
+        )
 
         self.logger.debug(f"Raw response: {response}")
         return response

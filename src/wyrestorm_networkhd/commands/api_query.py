@@ -318,7 +318,7 @@ class APIQueryCommands:
         Response Example: See Appendix A
         """
         command = f"config get device info {device}" if device else "config get device info"
-        response = await self.client.send_command(command, response_timeout=5)
+        response = await self.client.send_command(command, response_timeout=10, response_line_timeout=3)
         return DeviceInfo.parse(response)
 
     async def config_get_device_status(self, device: str | None = None) -> list[DeviceStatus]:

@@ -206,7 +206,9 @@ class TestAPIQueryCommands:
         result = await self.commands.config_get_device_info(device)
 
         # Assert
-        self.mock_client.send_command.assert_called_once_with("config get device info TX1", response_timeout=5)
+        self.mock_client.send_command.assert_called_once_with(
+            "config get device info TX1", response_timeout=10, response_line_timeout=3
+        )
         assert len(result) == 1
         assert result[0].aliasname == "TX1"
 
@@ -233,7 +235,9 @@ class TestAPIQueryCommands:
         result = await self.commands.config_get_device_info()
 
         # Assert
-        self.mock_client.send_command.assert_called_once_with("config get device info", response_timeout=5)
+        self.mock_client.send_command.assert_called_once_with(
+            "config get device info", response_timeout=10, response_line_timeout=3
+        )
         assert len(result) == 2
 
     @pytest.mark.asyncio

@@ -311,6 +311,7 @@ class _BaseNetworkHDClient(ABC):
         send_func: Callable[[str], None],
         receive_func: Callable[[], str | None],  # noqa: ARG002
         response_timeout: float,
+        response_line_timeout: float,
     ) -> str:
         """Generic command sending with response handling.
 
@@ -319,6 +320,7 @@ class _BaseNetworkHDClient(ABC):
             send_func: Protocol-specific function to send the command.
             receive_func: Protocol-specific function to receive response.
             response_timeout: Maximum time to wait for response.
+            response_line_timeout: Maximum time to wait for each response line.
 
         Returns:
             The response string from the device.
@@ -344,7 +346,7 @@ class _BaseNetworkHDClient(ABC):
                 while asyncio.get_event_loop().time() - start_time < response_timeout:
                     try:
                         # Wait for next response line
-                        line = await asyncio.wait_for(response_queue.get(), timeout=1.0)
+                        line = await asyncio.wait_for(response_queue.get(), timeout=response_line_timeout)
                         response_lines.append(line)
                     except TimeoutError:
                         # No more lines coming
