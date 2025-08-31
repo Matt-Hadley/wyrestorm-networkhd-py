@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.1.0...v2.2.0) (2025-08-31)
+
+
+### Features
+
+* add Python 3.11 support and update to production status ([82abb77](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/82abb775e721d31a44512d6ed24896c863b6b613))
+
 ## [2.1.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.0.1...v2.1.0) (2025-08-29)
 
 
