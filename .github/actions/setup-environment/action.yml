@@ -1,6 +1,10 @@
 name: "Setup Environment"
 description: "Setup Python environment and project dependencies"
 inputs:
+    python-version:
+        description: "Python version to use (overrides pyproject.toml)"
+        required: false
+        default: ""
     install-deps:
         description: "Whether to install project dependencies"
         required: false
@@ -44,10 +48,10 @@ runs:
               ")
               echo "package-name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
 
-        - name: Set up Python ${{ steps.setup-env.outputs.python-version }}
+        - name: Set up Python ${{ inputs.python-version || steps.setup-env.outputs.python-version }}
           uses: actions/setup-python@v5
           with:
-              python-version: ${{ steps.setup-env.outputs.python-version }}
+              python-version: ${{ inputs.python-version || steps.setup-env.outputs.python-version }}
               cache: "pip"
 
         - name: Install dependencies

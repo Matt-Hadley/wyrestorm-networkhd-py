@@ -38,9 +38,43 @@ jobs:
                   echo "Releases created: '${{ steps.release.outputs.releases_created }}'"
                   echo "Tag name: '${{ steps.release.outputs.tag_name }}'"
 
+    test-matrix:
+        name: Test on Python ${{ matrix.python-version }}
+        needs: release-please
+        if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        strategy:
+            matrix:
+                python-version: ["3.11", "3.12", "3.13"]
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+
+            - name: Setup environment
+              uses: ./.github/actions/setup-environment
+              with:
+                  python-version: ${{ matrix.python-version }}
+
+            - name: Cache dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cache/pip
+                      .venv
+                  key: ${{ runner.os }}-python-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+                  restore-keys: |
+                      ${{ runner.os }}-python-${{ matrix.python-version }}-
+                      ${{ runner.os }}-python-
+
+            - name: Run health check
+              run: make health-check
+
     publish:
         name: Publish to PyPI
-        needs: release-please
+        needs: [release-please, test-matrix]
         if: ${{ needs.release-please.outputs.releases_created == 'true' }}
         runs-on: ubuntu-latest
         timeout-minutes: 10
@@ -125,7 +159,7 @@ jobs:
 
     publish-docs:
         name: Publish Documentation
-        needs: [release-please, publish]
+        needs: [release-please, test-matrix, publish]
         if: ${{ needs.release-please.outputs.releases_created == 'true' }}
         runs-on: ubuntu-latest
         timeout-minutes: 10

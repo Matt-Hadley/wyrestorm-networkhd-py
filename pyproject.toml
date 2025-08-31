@@ -10,7 +10,7 @@ authors = [
     { name = "Matt-Hadley", email = "81762940+Matt-Hadley@users.noreply.github.com" },
 ]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 keywords = [
     "wyrestorm",
     "networkhd",
@@ -25,11 +25,12 @@ keywords = [
     "control",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -138,7 +139,7 @@ default_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 default_date_format = "%Y-%m-%d %H:%M:%S"
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 warn_redundant_casts = true
@@ -180,7 +181,7 @@ markers = [
 # Ruff configuration - replaces Black, isort, and Flake8
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py311"
 exclude = ["src/wyrestorm_networkhd/_version.py"]
 
 # Ruff formatter configuration (replaces Black)
