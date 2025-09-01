@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.2.0...v2.2.1) (2025-09-01)
+
+
+### Bug Fixes
+
+* include Python version in PR artifact name ([aa7e599](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/aa7e599aefb6f5d4889f7c07fd0b125913a13c8e))
+
 ## [2.2.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.1.0...v2.2.0) (2025-08-31)
 
 
