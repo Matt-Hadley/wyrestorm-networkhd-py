@@ -1,5 +1,33 @@
 # Changelog
 
+## [3.0.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.2.1...v3.0.0) (2026-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** send_command raises TimeoutError instead of returning "" and UnknownCommandError for "unknown command"; responses start at the command echo; response_line_timeout defaults to 0.3 s instead of 1 s; reconnect() raises ReconnectionError and no longer returns silently while connecting; heartbeat_interval and circuit_breaker_timeout are ignored with a DeprecationWarning (removed in 4.0); notification_handler.handle_notification is now synchronous.
+* **core:** ConnectionLostError/ReconnectionError/UnknownCommandError have new base classes, and parse_json_response raises ResponseError (a ValueError subclass once ResponseError gains that base).
+* **models:** DeviceInfo.parse and DeviceStatus.parse no longer raise DeviceQueryError when one of several devices is an error entry; that device is left out of the returned list. Unknown JSON keys are ignored instead of raising TypeError, invalid values raise ResponseError, and a required DeviceInfo "aliasname" of "null" stays the string "null".
+
+### Features
+
+* **core:** make library exceptions subclass the matching builtins ([0887aaa](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/0887aaa76001733120dfb3740e86e24ea34bff91))
+* **core:** rework transport, framing and reconnect ([2e8b8ba](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/2e8b8ba41ad9f1dc188ffec1f69d6439e23a1559))
+
+
+### Bug Fixes
+
+* **core:** annotate RS232 serial_kwargs so the docs build passes --strict ([0976d82](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/0976d821d31a8109c650137710f21cd0491fc009))
+* **core:** stop configuring logging on import ([edb3d3f](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/edb3d3fa0829b54484197042354fc67aa9e5bf92))
+* **models:** handle short video and multi-line serial/IR notifications ([edd87fb](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/edd87fb8c6d536589f60bd6dd4aceae984116e26))
+* **models:** parse device JSON robustly and raise ResponseError from parsers ([c73167f](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/c73167ff3bd75b00da8220d52803658b4fb3a8ce))
+
+
+### Documentation
+
+* correct CONTRIBUTING for 3.0 ([86a629b](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/86a629bd656d29991e5771320d8361c9193586f9))
+* update README and docs for 3.0 and add a migration guide ([97969e7](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/97969e7c6c2bad185093ae9dc4a7fbb8edc5ba7d))
+
 ## [2.2.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.2.0...v2.2.1) (2025-09-01)
 
 
