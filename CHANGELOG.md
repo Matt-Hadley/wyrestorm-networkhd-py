@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.1.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.0.1...v3.1.0) (2026-10-30)
+
+
+### Features
+
+* **core:** optional SSH host key pinning ([a8aaae6](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/a8aaae62d77d12656fb4d6a094bc5d67753e7e00))
+* optional SSH host key pinning; bound serialinfo framing ([e338451](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/e33845140fd793103dd43806e45a5ac943210a48))
+
+
+### Bug Fixes
+
+* **core:** cap serialinfo length and bound the reader buffer ([dd95508](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/dd95508f14eaaf7990d52a96954a843a34018c11))
+* **core:** dispatch serialinfo as soon as its data is in ([c41f5ad](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/c41f5ad450daf446111f762569aaf5cc7176bede))
+* **core:** record host key fingerprint only once the shell is open ([9c89533](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/9c8953389eb05f43e88d2c10f7e263cfccfb3556))
+
+
+### Documentation
+
+* describe pinning an existing SSH client after trust on first use ([536e5d0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/536e5d049703fd6475ba3d99e87678127af7f635))
+* document SSH host key pinning and trust on first use ([1285276](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/12852762e0faaf97d027b019df4e1920ca1af622))
+
 ## [3.0.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.0.0...v3.0.1) (2026-10-30)
 
 
