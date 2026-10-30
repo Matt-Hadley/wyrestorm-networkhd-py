@@ -23,10 +23,11 @@ GitHub Actions workflows for a Python package.
 **Main Branch:**
 
 - Automated release creation via [release-please](https://github.com/googleapis/release-please-action)
-- Complete health check validation
+- Complete health check on every supported Python version
 - Coverage badge updates
-- Package building and PyPI deployment via trusted publisher
+- Package building (sdist and wheel) and PyPI deployment via trusted publisher
 - GitHub release with distribution files (.whl)
+- Least-privilege permissions per job; third-party actions are pinned to commit SHAs (Dependabot updates them)
 
 **_How Release-Please Works:_**
 

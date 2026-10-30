@@ -24,37 +24,24 @@ jobs:
         strategy:
             matrix:
                 python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
-        outputs:
-            coverage: ${{ steps.coverage.outputs.coverage }}
-            coverage-color: ${{ steps.coverage.outputs.color }}
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
 
             - name: Setup environment
-              id: setup
               uses: ./.github/actions/setup-environment
               with:
                   python-version: ${{ matrix.python-version }}
-
-            - name: Cache dependencies
-              uses: actions/cache@v6
-              with:
-                  path: |
-                      ~/.cache/pip
-                  key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml') }}
-                  restore-keys: |
-                      ${{ runner.os }}-python-
 
             - name: Run health check
               run: make health-check
 
             - name: Coverage report
               continue-on-error: true
-              uses: 5monkeys/cobertura-action@v14
+              uses: 5monkeys/cobertura-action@ee5787cc56634acddedc51f21c7947985531e6eb # v14
               with:
                   path: coverage.xml
                   repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -65,7 +52,7 @@ jobs:
                   only_changed_files: false
 
             - name: Upload PR artifacts
-              uses: actions/upload-artifact@v7
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: pr-artifacts-${{ github.event.number }}-py${{ matrix.python-version }}
                   path: |
