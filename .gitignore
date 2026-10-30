@@ -212,3 +212,6 @@ security-report.json
 # setuptools-scm generated version file
 src/*/_version.py
 */_version.py
+
+# Claude Code local notes (private network details)
+CLAUDE.local.md
