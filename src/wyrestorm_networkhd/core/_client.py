@@ -1,17 +1,39 @@
 """NetworkHD client with inheritance-based architecture."""
 
 import asyncio
+import builtins
+import contextlib
+import inspect
+import random
+import re
 import time
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from enum import Enum
 from typing import Any
 
+from ..exceptions import (
+    AuthenticationError,
+    CommandError,
+    ConnectionError,
+    ConnectionLostError,
+    NetworkHDError,
+    ReconnectionError,
+    TimeoutError,
+    UnknownCommandError,
+)
 from ..logging_config import get_logger
 from ..models.api_notifications import (
     NotificationObject,
     NotificationParser,
 )
+
+# Upper bound for the reconnect backoff delay, in seconds
+_MAX_RECONNECT_DELAY = 30.0
+
+# Header line of an RS-232 data notification; <infolen> characters of data follow after CR LF (PDF section 12)
+_SERIALINFO_HEADER = re.compile(r"^notify serialinfo \S+ (?:hex|ascii) (\d+):$")
 
 
 class _ConnectionState(Enum):
@@ -27,25 +49,27 @@ class _ConnectionState(Enum):
 class _NotificationHandler:
     """Handles parsing and dispatching of NetworkHD API notifications."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize notification handler with parser and callbacks."""
-        self._callbacks: dict[str, list[Callable[[NotificationObject], None]]] = {}
+        self._callbacks: dict[str, list[Callable[[NotificationObject], Any]]] = {}
         self._parser = NotificationParser()
+        # Keeps references to tasks running async callbacks so they are not garbage collected mid-run
+        self._tasks: set[asyncio.Future] = set()
         self.logger = get_logger(f"{__name__}._NotificationHandler")
 
-    def register_callback(self, notification_type: str, callback: Callable[[NotificationObject], None]) -> None:
+    def register_callback(self, notification_type: str, callback: Callable[[NotificationObject], Any]) -> None:
         """Register a callback for a specific notification type.
 
         Args:
             notification_type: Type of notification to listen for.
-            callback: Function to call when this notification type is received.
+            callback: Function or coroutine function to call when this notification type is received.
         """
         if notification_type not in self._callbacks:
             self._callbacks[notification_type] = []
         self._callbacks[notification_type].append(callback)
         self.logger.debug(f"Registered callback for {notification_type} notifications")
 
-    def unregister_callback(self, notification_type: str, callback: Callable[[NotificationObject], None]) -> None:
+    def unregister_callback(self, notification_type: str, callback: Callable[[NotificationObject], Any]) -> None:
         """Unregister a specific callback for a notification type.
 
         Args:
@@ -61,87 +85,103 @@ class _NotificationHandler:
             except ValueError:
                 self.logger.warning(f"Callback not found for {notification_type} notifications")
 
-    async def handle_notification(self, notification_line: str) -> None:
+    def handle_notification(self, notification_line: str) -> None:
         """Parse and dispatch a notification to registered callbacks.
+
+        Sync callbacks run immediately; if a callback returns an awaitable it is scheduled as a task.
+        Callback errors are logged and never reach the reader.
 
         Args:
             notification_line: Raw notification string from the device.
         """
         try:
-            # Determine notification type directly from the notification string
             notification_type = self._parser.get_notification_type(notification_line)
+        except ValueError:
+            self.logger.debug(f"Ignoring unknown notification type: {notification_line}")
+            return
 
+        try:
             parsed_notification = self._parser.parse_notification(notification_line)
-            if parsed_notification is None:
-                self.logger.warning(f"Could not parse notification: {notification_line}")
-                return
+        except Exception:
+            self.logger.warning(f"Could not parse notification: {notification_line}", exc_info=True)
+            return
 
-            # Call registered callbacks
-            if notification_type in self._callbacks:
-                for callback in self._callbacks[notification_type]:
-                    try:
-                        callback(parsed_notification)
-                    except Exception as e:
-                        self.logger.error(f"Error in notification callback: {e}")
+        # Copy so callbacks may (un)register callbacks while we iterate
+        for callback in list(self._callbacks.get(notification_type, ())):
+            try:
+                result = callback(parsed_notification)
+                if inspect.isawaitable(result):
+                    task = asyncio.ensure_future(result)
+                    self._tasks.add(task)
+                    task.add_done_callback(self._on_callback_done)
+            except Exception:
+                self.logger.exception(f"Error in {notification_type} notification callback")
 
-            self.logger.debug(f"Processed {notification_type} notification: {parsed_notification}")
+        self.logger.debug(f"Processed {notification_type} notification: {parsed_notification}")
 
-        except Exception as e:
-            self.logger.error(f"Error handling notification '{notification_line}': {e}")
+    def _on_callback_done(self, task: asyncio.Future) -> None:
+        """Forget a finished async callback task and log its error, if any."""
+        self._tasks.discard(task)
+        if not task.cancelled() and task.exception() is not None:
+            self.logger.error("Error in async notification callback", exc_info=task.exception())
 
 
 class _BaseNetworkHDClient(ABC):
     """Base NetworkHD client with common functionality.
 
-    This is a private base class that provides notification handling
-    and common client operations. Protocol-specific implementations
-    inherit from this class.
+    This is a private base class that owns the connection lifecycle, the reader task, response framing and
+    notification dispatch. Protocol-specific subclasses only open/close the transport and read/write bytes.
     """
 
     def __init__(
         self,
         *,
-        circuit_breaker_timeout: float,
-        heartbeat_interval: float,
+        message_dispatcher_interval: float,
+        circuit_breaker_timeout: float | None = None,
+        heartbeat_interval: float | None = None,
     ):
         """Initialize base client with notification handler and state management.
 
         Args:
-            circuit_breaker_timeout: Time in seconds after which the circuit breaker
-                will automatically reset after being opened.
-            heartbeat_interval: Interval in seconds between heartbeat checks.
+            message_dispatcher_interval: Sleep interval in seconds between reads when nothing is readable.
+            circuit_breaker_timeout: Deprecated and ignored; will be removed in 4.0.
+            heartbeat_interval: Deprecated and ignored; will be removed in 4.0.
 
         Raises:
             ValueError: If any parameters are invalid.
         """
-        # Validate parameters
-        if circuit_breaker_timeout <= 0:
-            raise ValueError("Circuit breaker timeout must be positive")
-        if heartbeat_interval <= 0:
-            raise ValueError("Heartbeat interval must be positive")
+        for name, value in (
+            ("circuit_breaker_timeout", circuit_breaker_timeout),
+            ("heartbeat_interval", heartbeat_interval),
+        ):
+            if value is not None:
+                warnings.warn(
+                    f"{name} is deprecated and ignored; it will be removed in 4.0", DeprecationWarning, stacklevel=3
+                )
+        if message_dispatcher_interval <= 0:
+            raise ValueError("Message dispatcher interval must be positive")
+        self.message_dispatcher_interval = message_dispatcher_interval
+
         # Create notification handler (same for all protocols)
         self.notification_handler = _NotificationHandler()
 
         # Connection state management
         self._connection_state = _ConnectionState.DISCONNECTED
         self._connection_error: str | None = None
-        self._last_connection_attempt: float | None = None
+        self._connection_lost_reason: str | None = None
+        self._reconnect_lock = asyncio.Lock()
 
-        # Circuit breaker for connection failures (configurable timeout)
-        self._failure_count = 0
-        self._last_failure_time: float | None = None
-        self._circuit_open = False
-        self._circuit_open_time: float | None = None
-        self._circuit_breaker_timeout = circuit_breaker_timeout
+        # Reader task and line framing
+        self._message_dispatcher_task: asyncio.Task | None = None
+        self._reader_idle = asyncio.Event()
+        self._buffer = ""
+        self._pending_serialinfo: tuple[str, int] | None = None
+        self._pending_irinfo: str | None = None
 
-        # Command response handling (generic)
-        self._pending_commands: dict[str, asyncio.Queue] = {}
+        # Command response handling: lines go to the command currently waiting, None tells it the link died
+        self._response_queue: asyncio.Queue[str | None] | None = None
         self._command_lock = asyncio.Lock()
-        self._command_id_counter = 0
 
-        # Connection health monitoring (generic, configurable interval)
-        self._last_heartbeat: float | None = None
-        self._heartbeat_interval: float = heartbeat_interval
         self._connection_metrics: dict[str, Any] = {
             "commands_sent": 0,
             "commands_failed": 0,
@@ -153,48 +193,42 @@ class _BaseNetworkHDClient(ABC):
         self.logger = get_logger(f"{__name__}.{self.__class__.__name__}")
 
     # ============================================================================
-    # ABSTRACT METHODS - Must be implemented by subclasses
+    # ABSTRACT METHODS - Transport, implemented by subclasses
     # ============================================================================
 
+    @property
     @abstractmethod
-    async def connect(self) -> None:
-        """Establish connection to the NetworkHD device.
+    def _target(self) -> str:
+        """Human-readable name of the device connection, for logs and errors."""
+
+    @abstractmethod
+    async def _open_transport(self) -> None:
+        """Open the transport.
 
         Raises:
-            ConnectionError: If the connection fails.
+            NetworkHDError: Library errors (e.g. AuthenticationError) are re-raised as is; anything else is
+                wrapped in ConnectionError by connect().
         """
-        pass
 
     @abstractmethod
-    async def disconnect(self) -> None:
-        """Disconnect from the NetworkHD device."""
-        pass
+    async def _close_transport(self) -> None:
+        """Close the transport and clear its objects, even if closing fails."""
 
     @abstractmethod
-    def is_connected(self) -> bool:
-        """Check if connected to the device.
-
-        Returns:
-            True if connected, False otherwise.
-        """
-        pass
+    def _transport_alive(self) -> bool:
+        """Return whether the transport is open."""
 
     @abstractmethod
-    async def send_command(self, command: str, response_timeout: float) -> str:
-        """Send a command to the device and get the response.
+    async def _write(self, command: str) -> None:
+        """Write one command, adding the protocol's line terminator."""
 
-        Args:
-            command: The command string to send.
-            response_timeout: Maximum time to wait for response in seconds.
-
-        Returns:
-            The response string from the device.
+    @abstractmethod
+    async def _read_available(self) -> bytes:
+        """Return all bytes readable right now without waiting, or b"" if none.
 
         Raises:
-            ConnectionError: If not connected to the device.
-            CommandError: If the command fails or times out.
+            Exception: If the link is closed; the reader then marks the connection as lost.
         """
-        pass
 
     # ============================================================================
     # PUBLIC METHODS - Configuration and Status
@@ -229,15 +263,16 @@ class _BaseNetworkHDClient(ABC):
         return self._connection_metrics.copy()
 
     def register_notification_callback(
-        self, notification_type: str, callback: Callable[[NotificationObject], None]
+        self, notification_type: str, callback: Callable[[NotificationObject], Any]
     ) -> None:
         """Register a callback function for specific notification types.
 
         Args:
             notification_type: Type of notification to listen for.
                 Available types: 'endpoint', 'cecinfo', 'irinfo', 'serialinfo', 'video', 'sink'
-            callback: Function to call when this notification type is received.
-                The callback will receive the parsed notification object as its argument.
+            callback: Function or coroutine function to call when this notification type is received.
+                It receives the parsed notification object. A coroutine is scheduled as a task; exceptions
+                are logged.
 
         Example:
             ```python
@@ -250,7 +285,7 @@ class _BaseNetworkHDClient(ABC):
         self.notification_handler.register_callback(notification_type, callback)
 
     def unregister_notification_callback(
-        self, notification_type: str, callback: Callable[[NotificationObject], None]
+        self, notification_type: str, callback: Callable[[NotificationObject], Any]
     ) -> None:
         """Remove a previously registered notification callback.
 
@@ -264,125 +299,308 @@ class _BaseNetworkHDClient(ABC):
     # PUBLIC METHODS - Connection Management
     # ============================================================================
 
-    async def reconnect(self, max_attempts: int, delay: float) -> None:
-        """Attempt to reconnect to the device with exponential backoff.
+    async def connect(self) -> None:
+        """Connect to the NetworkHD device and start the reader task.
 
-        Args:
-            max_attempts: Maximum number of reconnection attempts.
-            delay: Initial delay between attempts in seconds.
+        Any existing connection and reader task are torn down first, so this also serves to reconnect.
 
         Raises:
-            ConnectionError: If reconnection fails after max attempts.
+            ConnectionError: If the connection fails.
+            AuthenticationError: If authentication fails (SSH).
         """
-        if self._connection_state == _ConnectionState.CONNECTING:
-            self.logger.warning("Already attempting to connect")
-            return
+        await self._teardown()
+        self._set_connection_state("connecting")
+        self.logger.info(f"Connecting to {self._target}")
+        try:
+            await self._open_transport()
+        except Exception as e:
+            self._set_connection_state("error", f"Connection failed: {e}")
+            with contextlib.suppress(Exception):
+                await self._close_transport()
+            if isinstance(e, NetworkHDError):
+                raise
+            raise ConnectionError(f"Connection failed: {e}") from e
 
-        for attempt in range(max_attempts):
-            try:
-                self.logger.info(f"Reconnection attempt {attempt + 1}/{max_attempts}")
-                self._set_connection_state("reconnecting")
+        self._buffer = ""
+        self._pending_serialinfo = None
+        self._pending_irinfo = None
+        self._connection_lost_reason = None
+        self._message_dispatcher_task = asyncio.create_task(self._message_dispatcher())
+        self._set_connection_state("connected")
+        self.logger.info(f"Successfully connected to {self._target}")
 
-                # Wait before retry (exponential backoff)
-                if attempt > 0:
-                    wait_time = delay * (2 ** (attempt - 1))
-                    self.logger.info(f"Waiting {wait_time}s before retry")
-                    await asyncio.sleep(wait_time)
+    async def disconnect(self) -> None:
+        """Disconnect from the NetworkHD device and stop the reader task."""
+        self.logger.info(f"Disconnecting from {self._target}")
+        try:
+            await self._teardown(suppress_errors=False)
+        finally:
+            self._set_connection_state("disconnected")
+        self.logger.info(f"Disconnected from {self._target}")
 
-                await self.connect()
-                self.logger.info("Reconnection successful")
+    def is_connected(self) -> bool:
+        """Check if connected to the device.
+
+        Returns:
+            True if the transport is open and the reader is running, False otherwise.
+        """
+        connected = self._connection_state == _ConnectionState.CONNECTED and self._transport_alive()
+        if not connected and self._connection_state == _ConnectionState.CONNECTED:
+            self._set_connection_state("disconnected")
+        return connected
+
+    async def reconnect(self, max_attempts: int = 5, delay: float = 1.0) -> None:
+        """Reconnect to the device, retrying with capped exponential backoff and jitter.
+
+        If another reconnect is already running, waits for it and returns if it succeeded.
+
+        Args:
+            max_attempts: Maximum number of connection attempts.
+            delay: Delay before the second attempt in seconds; doubles per attempt, capped at 30 s.
+
+        Raises:
+            ReconnectionError: If every attempt fails.
+            AuthenticationError: If the device rejects the credentials (not retried).
+        """
+        already_running = self._reconnect_lock.locked()
+        async with self._reconnect_lock:
+            if already_running and self.is_connected():
                 return
 
-            except Exception as e:
-                error_msg = f"Reconnection attempt {attempt + 1} failed: {e}"
-                self._set_connection_state("error", error_msg)
-                self.logger.warning(error_msg)
+            last_error: Exception | None = None
+            for attempt in range(1, max_attempts + 1):
+                if attempt > 1:
+                    wait_time = min(delay * 2 ** (attempt - 2), _MAX_RECONNECT_DELAY) * random.uniform(0.5, 1.0)
+                    self._set_connection_state("reconnecting", str(last_error))
+                    self.logger.info(f"Waiting {wait_time:.1f}s before reconnection attempt {attempt}/{max_attempts}")
+                    await asyncio.sleep(wait_time)
+                try:
+                    self.logger.info(f"Reconnection attempt {attempt}/{max_attempts}")
+                    await self.connect()
+                    self.logger.info("Reconnection successful")
+                    return
+                except AuthenticationError:
+                    raise
+                except Exception as e:
+                    last_error = e
+                    self.logger.warning(f"Reconnection attempt {attempt} failed: {e}")
 
-                if attempt == max_attempts - 1:
-                    raise ConnectionError(f"Failed to reconnect after {max_attempts} attempts: {e}") from e
+            raise ReconnectionError(self._target, max_attempts, str(last_error)) from last_error
+
+    async def send_command(
+        self, command: str, response_timeout: float = 10.0, response_line_timeout: float = 0.3
+    ) -> str:
+        """Send a command to the device and get the response.
+
+        The response starts at the line echoing the command (earlier, stale lines are dropped) and ends when no
+        further line arrives for response_line_timeout. Devices that do not echo get all lines received.
+
+        Args:
+            command: The command string to send.
+            response_timeout: Maximum time to wait for the response in seconds, including the first line.
+            response_line_timeout: Idle gap in seconds after a line that ends the response.
+
+        Returns:
+            The response string from the device, lines joined with "\\n".
+
+        Raises:
+            ConnectionError: If not connected to the device (ConnectionLostError if the link dropped).
+            CommandError: If the command contains a line break or the device reports an error.
+            UnknownCommandError: If the device answers "unknown command".
+            TimeoutError: If no response line arrives within response_timeout.
+        """
+        command = command.strip()
+        if "\r" in command or "\n" in command:
+            raise CommandError(f"Command must be a single line: {command!r}")
+        if not self.is_connected():
+            if self._connection_lost_reason is not None:
+                raise ConnectionLostError(self._target, self._connection_lost_reason)
+            raise ConnectionError("Not connected")
+
+        async with self._command_lock:
+            try:
+                await self._drain_stale_lines()
+                queue: asyncio.Queue[str | None] = asyncio.Queue()
+                self._response_queue = queue
+                self.logger.debug(f"Sending command: {command}")
+                await self._write(command)
+                self._record_command_sent()
+                lines = await self._collect_response(command, queue, response_timeout, response_line_timeout)
+                response = self._parse_response(command, lines)
+            except Exception:
+                self._record_command_failed()
+                raise
+            finally:
+                self._response_queue = None
+
+        self.logger.debug(f"Raw response: {response}")
+        return response
 
     # ============================================================================
     # PROTECTED METHODS - Command Handling
     # ============================================================================
 
-    async def _send_command_generic(
-        self,
-        command: str,
-        send_func: Callable[[str], None],
-        receive_func: Callable[[], str | None],  # noqa: ARG002
-        response_timeout: float,
-        response_line_timeout: float,
-    ) -> str:
-        """Generic command sending with response handling.
+    async def _drain_stale_lines(self) -> None:
+        """Let the reader consume and drop whatever is already readable before a command is sent."""
+        self._reader_idle.clear()
+        # Bounded so a busy stream of notifications cannot hold the command back
+        with contextlib.suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(self._reader_idle.wait(), timeout=1.0)
 
-        Args:
-            command: The command string to send.
-            send_func: Protocol-specific function to send the command.
-            receive_func: Protocol-specific function to receive response.
-            response_timeout: Maximum time to wait for response.
-            response_line_timeout: Maximum time to wait for each response line.
+    async def _collect_response(
+        self, command: str, queue: "asyncio.Queue[str | None]", response_timeout: float, response_line_timeout: float
+    ) -> list[str]:
+        """Collect response lines for a command.
 
         Returns:
-            The response string from the device.
+            The response lines, starting at the command echo when one was seen.
 
         Raises:
-            ConnectionError: If not connected.
-            TimeoutError: If response times out.
+            TimeoutError: If no line arrives within response_timeout.
+            ConnectionLostError: If the link drops while waiting.
         """
-        async with self._command_lock:
-            command_id = str(self._command_id_counter)
-            self._command_id_counter += 1
-            response_queue: asyncio.Queue[str] = asyncio.Queue()
+        lines: list[str] = []
+        echo_index: int | None = None
 
-            try:
-                self._pending_commands[command_id] = response_queue
-                send_func(command)
-                self._record_command_sent()
+        def add(line: str | None) -> None:
+            nonlocal echo_index
+            if line is None:
+                raise ConnectionLostError(self._target, self._connection_lost_reason)
+            if echo_index is None and line == command:
+                echo_index = len(lines)
+            lines.append(line)
 
-                # Collect all response lines until timeout
-                response_lines = []
-                start_time = asyncio.get_event_loop().time()
-
-                while asyncio.get_event_loop().time() - start_time < response_timeout:
+        try:
+            async with asyncio.timeout(response_timeout):
+                add(await queue.get())
+                while True:
                     try:
-                        # Wait for next response line
-                        line = await asyncio.wait_for(response_queue.get(), timeout=response_line_timeout)
-                        response_lines.append(line)
-                    except TimeoutError:
-                        # No more lines coming
+                        add(await asyncio.wait_for(queue.get(), timeout=response_line_timeout))
+                    except builtins.TimeoutError:
                         break
+        except builtins.TimeoutError:
+            if not lines:
+                raise TimeoutError(command, response_timeout) from None
 
-                # Join all response lines and parse response
-                raw_response = "\n".join(response_lines) if response_lines else ""
-                return self._parse_response(raw_response)
-            except Exception:  # noqa: B904
-                self._record_command_failed()
-                raise
-            finally:
-                self._pending_commands.pop(command_id, None)
+        if echo_index:
+            self.logger.debug(f"Dropping stale lines before echo of '{command}': {lines[:echo_index]}")
+            lines = lines[echo_index:]
+        return lines
 
-    def _parse_response(self, response: str) -> str:
+    def _parse_response(self, command: str, lines: list[str]) -> str:
         """Generic response parsing for NetworkHD devices.
 
         Args:
-            response: The raw response string from the device.
+            command: The command that was sent.
+            lines: The response lines, starting with the echo if the device sent one.
 
         Returns:
-            The parsed response string.
+            The response string.
 
         Raises:
             CommandError: If the response indicates an error.
+            UnknownCommandError: If the device did not understand the command.
         """
-        from ..exceptions import CommandError
+        lines = [stripped for line in lines if (stripped := line.replace("Welcome to NetworkHD", "").strip())]
+        if any(line.lower() == "unknown command" for line in lines):
+            raise UnknownCommandError(command)
+        body = lines[1:] if lines and lines[0] == command else lines
+        if body and body[0].startswith("ERROR"):
+            detail = "\n".join(body)
+            raise CommandError(f"Command error: {detail}")
+        return "\n".join(lines)
 
-        # Remove welcome message and strip whitespace
-        response = response.replace("Welcome to NetworkHD", "").strip()
+    # ============================================================================
+    # PROTECTED METHODS - Reader
+    # ============================================================================
 
-        # Check for error responses
-        if response.startswith("ERROR"):
-            raise CommandError(f"Command error: {response}")
+    async def _message_dispatcher(self) -> None:
+        """Read from the transport until it closes, routing lines to notifications or the waiting command."""
+        try:
+            while True:
+                if not self._transport_alive():
+                    raise ConnectionError("transport closed")
+                data = await self._read_available()
+                if data:
+                    self._feed(data.decode("utf-8", errors="ignore"))
+                    continue
+                self._reader_idle.set()
+                await asyncio.sleep(self.message_dispatcher_interval)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            self.logger.warning(f"Connection to {self._target} lost: {e}")
+            self._connection_lost_reason = str(e)
+            self._set_connection_state("error", f"Connection lost: {e}")
+            if self._response_queue is not None:
+                self._response_queue.put_nowait(None)
+        finally:
+            self._reader_idle.set()
+            if self._message_dispatcher_task is asyncio.current_task():
+                self._message_dispatcher_task = None
+            self.logger.debug("Message dispatcher stopped")
 
-        return response
+    def _feed(self, data: str) -> None:
+        """Split received text into lines and route each one.
+
+        Multi-line notifications are assembled first: ``notify serialinfo`` by its <infolen> character count,
+        ``notify irinfo`` until its closing quote; the handler gets header and data as one "\\n"-joined string.
+        """
+        self._buffer += data
+        while True:
+            if self._pending_serialinfo is not None:
+                header, length = self._pending_serialinfo
+                if len(self._buffer) < length:
+                    return
+                serial_data, self._buffer = self._buffer[:length], self._buffer[length:]
+                self._pending_serialinfo = None
+                self._dispatch_notification(f"{header}\n{serial_data}")
+                continue
+
+            if "\n" not in self._buffer:
+                return
+            line, self._buffer = self._buffer.split("\n", 1)
+            line = line.strip()
+            if not line:
+                continue
+
+            if self._pending_irinfo is not None:
+                self._pending_irinfo += "\n" + line
+                if '"' in line:
+                    line, self._pending_irinfo = self._pending_irinfo, None
+                    self._dispatch_notification(line)
+                continue
+
+            self.logger.debug(f"Message dispatcher received line: {line!r}")
+            if line.startswith("notify "):
+                if match := _SERIALINFO_HEADER.match(line):
+                    self._pending_serialinfo = (line, int(match.group(1)))
+                elif line.startswith("notify irinfo ") and line.count('"') == 1:
+                    self._pending_irinfo = line
+                else:
+                    self._dispatch_notification(line)
+            elif self._response_queue is not None:
+                self._response_queue.put_nowait(line)
+            else:
+                self.logger.debug(f"Dropping unsolicited line: {line}")
+
+    def _dispatch_notification(self, notification: str) -> None:
+        """Hand a complete notification to the notification handler."""
+        self._record_notification_received()
+        self.notification_handler.handle_notification(notification)
+
+    async def _teardown(self, *, suppress_errors: bool = True) -> None:
+        """Stop the reader task and close the transport."""
+        task, self._message_dispatcher_task = self._message_dispatcher_task, None
+        if task is not None and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        if suppress_errors:
+            with contextlib.suppress(Exception):
+                await self._close_transport()
+        else:
+            await self._close_transport()
 
     # ============================================================================
     # PROTECTED METHODS - Metrics and State Management
@@ -422,64 +640,21 @@ class _BaseNetworkHDClient(ABC):
         if self._connection_state != old_state:
             self.logger.info(f"Connection state changed: {old_state.value} -> {self._connection_state.value}")
             if error:
-                self.logger.error(f"Connection error: {error}")
-
-        # Update circuit breaker state
-        if self._connection_state == _ConnectionState.ERROR:
-            self._record_failure()
-        elif self._connection_state == _ConnectionState.CONNECTED:
-            self._reset_circuit()
+                self.logger.warning(f"Connection error: {error}")
 
     # ============================================================================
-    # PROTECTED METHODS - Circuit Breaker Logic
+    # CONTEXT MANAGER METHODS
     # ============================================================================
 
-    def _record_failure(self) -> None:
-        """Record a connection failure for circuit breaker logic."""
-        current_time = time.time()
-
-        self._failure_count += 1
-        self._last_failure_time = current_time
-
-        # Open circuit after 3 consecutive failures
-        if self._failure_count >= 3:
-            self._circuit_open = True
-            self._circuit_open_time = current_time
-            self.logger.warning("Circuit breaker opened due to repeated failures")
-
-    def _reset_circuit(self) -> None:
-        """Reset circuit breaker after successful connection."""
-        self._failure_count = 0
-        self._circuit_open = False
-        self._circuit_open_time = None
-        self.logger.info("Circuit breaker reset after successful connection")
-
-    def _is_circuit_open(self) -> bool:
-        """Check if circuit breaker is open.
+    async def __aenter__(self):
+        """Async context manager entry.
 
         Returns:
-            True if circuit breaker is open, False otherwise.
+            Self after establishing connection.
         """
-        if not self._circuit_open:
-            return False
+        await self.connect()
+        return self
 
-        # Auto-close circuit after configured timeout
-        import time
-
-        if self._circuit_open_time and (time.time() - self._circuit_open_time) > self._circuit_breaker_timeout:
-            self.logger.info("Circuit breaker auto-closing after timeout")
-            self._circuit_open = False
-            self._failure_count = 0
-            return False
-
-        return True
-
-    def __del__(self):
-        """Destructor to ensure message dispatcher task is cleaned up."""
-        if (
-            hasattr(self, "_message_dispatcher_task")
-            and self._message_dispatcher_task
-            and not self._message_dispatcher_task.done()
-        ):
-            # If there's still a running task, cancel it
-            self._message_dispatcher_task.cancel()
+    async def __aexit__(self, _exc_type, _exc_val, _exc_tb):
+        """Async context manager exit; disconnects."""
+        await self.disconnect()
