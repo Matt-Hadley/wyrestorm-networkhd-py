@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.0.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.0.0...v3.0.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* 3.0.1 — echo handling, truncated replies and connection lifecycle ([68d5b21](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/68d5b21d550a04ff59435cd4233bc3496958a767))
+* **commands:** drop the command echo before parsing replies ([6b620dc](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/6b620dcd2561c5eaef925a88bfe3a0b77f3e6795))
+* **core:** harden the reader, timeouts and connection lifecycle ([576ab4e](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/576ab4e766d19edf1629d7cd2d00c9adcf986cde))
+* **models:** skip unparseable devices in multi-device lists ([2ba6b8e](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/2ba6b8edb27bef437132ead75679776f9d464814))
+
+
+### Documentation
+
+* correct NHDAPI registration and document 3.0.1 behaviour changes ([51f14b3](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/51f14b3fd61ee9881b09bc59d336ac0c77c8b637))
+
 ## [3.0.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.2.1...v3.0.0) (2026-10-30)
 
 
