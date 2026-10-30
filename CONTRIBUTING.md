@@ -328,7 +328,8 @@ commands when testing against a live system.
 
 Instead, report them through
 [GitHub private vulnerability reporting](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/security/advisories/new)
-with reproduction steps and, if you have one, a suggested fix. See [SECURITY.md](SECURITY.md).
+with reproduction steps and, if you have one, a suggested fix. See the
+[security policy](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/security/policy).
 
 ## 📚 Documentation
 
