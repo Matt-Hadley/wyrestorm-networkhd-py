@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.1.2](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.1.1...v3.1.2) (2026-10-30)
+
+
+### Bug Fixes
+
+* **core:** drop other API sessions' echoed commands and replies from responses ([aa6f559](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/aa6f559841d7c49483bba96f73aaa49805341b28))
+* **core:** keep possessive scene replies and drop repeats of our own command ([27b2aaf](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/27b2aafa9be8560cb3936b4c6a9557d236e98270))
+* ignore other API sessions' traffic in command responses ([8880bbf](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/8880bbf59ccb938dbdf23409818d468eebc4e182))
+
+
+### Documentation
+
+* note that the controller echoes other sessions' traffic ([61a86d0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/61a86d01ff50e9bff5e6dd41615234e12484eb94))
+
 ## [3.1.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.1.0...v3.1.1) (2026-10-30)
 
 
