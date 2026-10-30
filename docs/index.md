@@ -301,8 +301,9 @@ Register callbacks with `client.register_notification_callback(type, callback)`,
 are `"endpoint"`, `"cecinfo"`, `"irinfo"`, `"serialinfo"`, `"video"` and `"sink"`; each callback receives the parsed
 notification model (see [Models](reference/models.md)). Coroutine callbacks are scheduled as tasks. Exceptions raised by
 callbacks are logged and don't affect the connection. Multi-line `serialinfo` and `irinfo` notifications are assembled
-before your callback sees them. A `serialinfo` whose length is over 65536 or doesn't match its data, and any line or
-`irinfo` over 64 KiB, is dropped with a warning in the log.
+before your callback sees them. A `serialinfo` is framed by its stated length, which is trusted: a length over 65536 is
+dropped with a warning, and `hex` data containing anything but hex digits and whitespace stops the framing so the
+following lines are read normally. Any line or `irinfo` over 64 KiB is dropped with a warning in the log.
 
 CEC notifications from NHD-400/500 endpoints can be switched on or off:
 

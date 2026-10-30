@@ -109,6 +109,20 @@ async def test_link_loss_while_waiting_fails_the_command(ssh_client, device):
 
 
 @pytest.mark.asyncio
+async def test_command_queued_behind_a_dropped_link_raises_connection_lost(ssh_client, device):
+    """Regression: a command waiting for the lock passed the connected check and then wrote to the dead link."""
+    asyncio.get_running_loop().call_later(0.05, setattr, device.shell, "closed", True)
+
+    results = await asyncio.gather(
+        ssh_client.send_command("a", response_timeout=2.0, response_line_timeout=0.05),
+        ssh_client.send_command("b", **FAST),
+        return_exceptions=True,
+    )
+
+    assert [type(result) for result in results] == [ConnectionLostError, ConnectionLostError]
+
+
+@pytest.mark.asyncio
 async def test_reconnect_retries_until_connected(ssh_client, device):
     device.shell.closed = True
     await wait_until(lambda: not ssh_client.is_connected())

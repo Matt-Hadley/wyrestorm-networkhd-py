@@ -69,6 +69,8 @@ class FakeShell:
 
     def sendall(self, data: bytes) -> None:
         """Called in a worker thread, like the blocking paramiko call."""
+        if self.closed:
+            raise OSError("Socket is closed")
         self.sent.append(data)
         for delay, text in self.device.scheduled_replies(data):
             self.loop.call_soon_threadsafe(self.loop.call_later, delay, self.feed, text)
