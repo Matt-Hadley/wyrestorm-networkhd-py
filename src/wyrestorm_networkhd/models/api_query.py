@@ -1,17 +1,133 @@
 """NetworkHD API query response data models."""
 
 import json
+import logging
+import types
 from dataclasses import dataclass, fields
-from typing import Literal, TypeVar, cast, get_args, get_origin
+from typing import Any, Literal, TypeVar, cast, get_args, get_origin
 
-from ..exceptions import DeviceNotFoundError
+from ..exceptions import DeviceNotFoundError, DeviceQueryError, ResponseError
+
+_LOGGER = logging.getLogger(__name__)
 
 # TypeVar for BaseMatrix generic return type
 T = TypeVar("T", bound="BaseMatrix")
+D = TypeVar("D")
 
 # =============================================================================
 # Helper Functions for Common Parsing Patterns
 # =============================================================================
+
+
+def _coerce_fields(cls: type, raw: dict[str, Any]) -> dict[str, Any]:
+    """Convert one device's JSON object into keyword arguments for a dataclass
+
+    Keys are converted from "space separated" to snake_case and keys the dataclass doesn't define are skipped. Values for
+    int and bool fields are converted from the strings the API uses, with empty strings becoming None. Values for other
+    fields (str, lists, nested objects) are passed through. None, and "null" for optional fields, become None.
+
+    Args:
+        cls: The dataclass to build arguments for
+        raw: The device's JSON object
+
+    Returns:
+        dict[str, Any]: Keyword arguments for cls
+
+    Raises:
+        ResponseError: If an int or bool value can't be converted
+    """
+    field_types = {field.name: field.type for field in fields(cls)}
+    converted: dict[str, Any] = {}
+    for key, value in raw.items():
+        name = key.replace(" ", "_")
+        expected_type = field_types.get(name)
+        if expected_type is None:
+            _LOGGER.debug("Skipping unknown %s field %r", cls.__name__, key)
+            continue
+
+        # Unwrap Optional[T] (T | None) to T
+        optional = False
+        if get_origin(expected_type) is types.UnionType:
+            args = get_args(expected_type)
+            optional = type(None) in args
+            expected_type = next(arg for arg in args if arg is not type(None))
+
+        if value is None or (optional and value == "null") or (expected_type in (int, bool) and value == ""):
+            converted[name] = None
+        elif expected_type is int:
+            try:
+                converted[name] = int(value)
+            except (TypeError, ValueError) as e:
+                raise ResponseError(f"Invalid integer for {cls.__name__} field '{key}': {value!r}") from e
+        elif expected_type is bool:
+            if isinstance(value, bool):
+                converted[name] = value
+            elif isinstance(value, str) and value.lower() in ("true", "yes"):
+                converted[name] = True
+            elif isinstance(value, str) and value.lower() in ("false", "no"):
+                converted[name] = False
+            else:
+                raise ResponseError(f"Invalid boolean for {cls.__name__} field '{key}': {value!r}")
+        else:
+            converted[name] = value
+    return converted
+
+
+def _build(cls: type[D], kwargs: dict[str, Any]) -> D:
+    """Create a dataclass from parsed fields, raising ResponseError if required fields are missing
+
+    Args:
+        cls: The dataclass to create
+        kwargs: Keyword arguments from _coerce_fields
+
+    Returns:
+        The dataclass instance
+
+    Raises:
+        ResponseError: If a required field is missing
+    """
+    try:
+        return cls(**kwargs)
+    except TypeError as e:
+        raise ResponseError(f"Invalid {cls.__name__} data: {e}") from e
+
+
+def _load_device_entries(response: str, key: str) -> list[dict[str, Any]]:
+    """Load the device list from a 'config get device info/status' JSON response, dropping error entries
+
+    The API reports devices it can't query as {"name": ..., "error": ...} entries. A query for one device raises for its
+    error entry; in a list of several devices error entries are skipped so that one bad endpoint doesn't hide the rest.
+
+    Args:
+        response: The raw response string from the device
+        key: The JSON key holding the device list ("devices" or "devices status")
+
+    Returns:
+        list[dict[str, Any]]: The device JSON objects without error entries
+
+    Raises:
+        ResponseError: If the response has no valid JSON or no device list
+        DeviceQueryError: If the response's only entry is an error entry
+    """
+    json_start = response.find("{")
+    if json_start == -1:
+        raise ResponseError(f"No JSON content found in response: {response}")
+
+    try:
+        data = json.loads(response[json_start:])
+    except json.JSONDecodeError as e:
+        raise ResponseError(f"Invalid JSON in response: {e}") from e
+
+    if not isinstance(data, dict) or not isinstance(data.get(key), list):
+        raise ResponseError(f"No '{key}' key found in response: {response}")
+
+    entries: list[dict[str, Any]] = data[key]
+    errors = [entry for entry in entries if "error" in entry]
+    if errors and len(entries) == 1:
+        raise DeviceQueryError(errors[0].get("name", "unknown"), errors[0].get("error", "unknown error"))
+    for entry in errors:
+        _LOGGER.debug("Skipping device %s: %s", entry.get("name", "unknown"), entry.get("error"))
+    return [entry for entry in entries if "error" not in entry]
 
 
 def _skip_to_header(response: str, header: str) -> list[str]:
@@ -64,7 +180,7 @@ def _parse_device_mode_assignment(line: str) -> tuple[str, str, str | None]:
     """
     parts = line.split()
     if len(parts) < 2:
-        raise ValueError(f"Invalid assignment line format: {line}")
+        raise ResponseError(f"Invalid assignment line format: {line}")
 
     device = parts[0]
     mode = parts[1]
@@ -124,7 +240,7 @@ class Version:
             Version: Parsed version information object
 
         Raises:
-            ValueError: If required version information cannot be found
+            ResponseError: If required version information cannot be found
 
         Notes:
             Searches through the response for version patterns, ignoring command echoes and other noise.
@@ -148,9 +264,9 @@ class Version:
 
         # Validate that we found all required information
         if api_version is None:
-            raise ValueError(f"Could not find API version in response: {response}")
-        if web_version is None:
-            raise ValueError(f"Could not find System version in response: {response}")
+            raise ResponseError(f"Could not find API version in response: {response}")
+        if web_version is None or core_version is None:
+            raise ResponseError(f"Could not find System version in response: {response}")
 
         return cls(api_version=api_version, web_version=web_version, core_version=core_version)
 
@@ -224,7 +340,7 @@ class IpSetting:
             IpSetting: Parsed IP setting information object
 
         Raises:
-            ValueError: If response format is invalid or missing required settings
+            ResponseError: If response format is invalid or missing required settings
 
         Notes:
             Underlying NetworkHD API raw response format:
@@ -244,7 +360,7 @@ class IpSetting:
         elif "ipsetting2 is:" in response:
             settings_part = response.split("ipsetting2 is:")[1].strip()
         else:
-            raise ValueError(f"Invalid IP settings response ResponseFormat: {response}")
+            raise ResponseError(f"Invalid IP settings response ResponseFormat: {response}")
 
         parts = settings_part.split()
         settings = {}
@@ -255,7 +371,7 @@ class IpSetting:
                 settings[key] = value
 
         if not all(key in settings for key in ["ip4addr", "netmask", "gateway"]):
-            raise ValueError(f"Missing required IP settings in response: {response}")
+            raise ResponseError(f"Missing required IP settings in response: {response}")
 
         return cls(ip4addr=settings["ip4addr"], netmask=settings["netmask"], gateway=settings["gateway"])
 
@@ -284,7 +400,7 @@ class EndpointAliasHostname:
 
         Raises:
             DeviceNotFoundError: If the specified device does not exist
-            ValueError: If response format is invalid
+            ResponseError: If response format is invalid
 
         Notes:
             Underlying NetworkHD API raw response format:
@@ -314,7 +430,7 @@ class EndpointAliasHostname:
 
         parts = response.split("'s alias is ")
         if len(parts) != 2:
-            raise ValueError(f"Invalid name response ResponseFormat: {response}")
+            raise ResponseError(f"Invalid name response ResponseFormat: {response}")
 
         hostname = parts[0].strip()
         alias_part = parts[1].strip()
@@ -389,6 +505,9 @@ class DeviceJsonString:
         Returns:
             list[DeviceJsonString]: List of parsed device json string objects
 
+        Raises:
+            ResponseError: If the response isn't valid device JSON
+
         Notes:
             Underlying NetworkHD API raw response format:
                 ```
@@ -433,64 +552,24 @@ class DeviceJsonString:
                 ]
                 ```
         """
-        # Find the JSON content (starts with '[')
         json_start = response.find("[")
         if json_start == -1:
-            raise ValueError(f"No JSON array content found in response: {response}")
-
-        json_content = response[json_start:]
+            raise ResponseError(f"No JSON array content found in response: {response}")
 
         try:
-            data = json.loads(json_content)
+            data = json.loads(response[json_start:])
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in response: {e}") from e
+            raise ResponseError(f"Invalid JSON in response: {e}") from e
 
         devices = []
-
-        # Get field type information from the dataclass
-        field_types = {field.name: field.type for field in fields(cls)}
-
         for device_data in data:
-            # Handle special nested objects and type conversion
-            converted_data = {}
-            for key, value in device_data.items():
-                # Handle special nested objects
-                if key == "group" and isinstance(value, list):
-                    # Parse group array
-                    groups = []
-                    for group_item in value:
-                        groups.append(
-                            DeviceJsonStringGroup(
-                                name=group_item.get("name", ""), sequence=group_item.get("sequence", 0)
-                            )
-                        )
-                    converted_data[key] = groups
-                else:
-                    # Get the expected type for this field
-                    expected_type = field_types.get(key)
-                    if expected_type is None:
-                        # Field not in dataclass, skip it
-                        continue
-
-                    # Handle Optional[T] types (Union[T, None])
-                    origin = get_origin(expected_type)
-                    if origin is type(int | str):  # Union type
-                        args = get_args(expected_type)
-                        # Find the non-None type
-                        actual_type = next((arg for arg in args if arg is not type(None)), str)
-                    else:
-                        actual_type = expected_type
-
-                    # Convert value based on actual type
-                    if actual_type is int:
-                        converted_data[key] = int(value) if value is not None else None
-                    elif actual_type is bool:
-                        converted_data[key] = value
-                    else:
-                        # Keep as string for str and other types
-                        converted_data[key] = value
-
-            devices.append(cls(**converted_data))
+            converted_data = _coerce_fields(cls, device_data)
+            if isinstance(device_data.get("group"), list):
+                converted_data["group"] = [
+                    DeviceJsonStringGroup(name=group_item.get("name", ""), sequence=group_item.get("sequence", 0))
+                    for group_item in device_data["group"]
+                ]
+            devices.append(_build(cls, converted_data))
 
         return devices
 
@@ -604,7 +683,12 @@ class DeviceInfo:
             response: The raw response string from the device
 
         Returns:
-            list[DeviceInfo]: List of parsed device information objects
+            list[DeviceInfo]: List of parsed device information objects. In a response for several devices, entries the
+                controller reports as errors (for example a device that can't be queried) are skipped.
+
+        Raises:
+            ResponseError: If the response isn't valid device JSON
+            DeviceQueryError: If the response's only device entry is an error
 
         Notes:
             Underlying NetworkHD API raw response format:
@@ -638,103 +722,42 @@ class DeviceInfo:
                 }
                 ```
         """
-        # Find the JSON content
-        json_start = response.find("{")
-        if json_start == -1:
-            raise ValueError(f"No JSON content found in response: {response}")
-
-        json_content = response[json_start:]
-
-        try:
-            data = json.loads(json_content)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in response: {e}") from e
-
-        if "devices" not in data:
-            raise ValueError(f"No 'devices' key found in response: {response}")
-
         devices = []
+        for device_data in _load_device_entries(response, "devices"):
+            converted_data = _coerce_fields(cls, device_data)
 
-        # Get field type information from the dataclass
-        field_types = {field.name: field.type for field in fields(cls)}
+            audio = device_data.get("audio")
+            if isinstance(audio, list):
+                converted_data["audio"] = [
+                    DeviceInfoAudioOutput(mute=audio_item.get("mute", False), name=audio_item.get("name", ""))
+                    for audio_item in audio
+                ]
 
-        for device_data in data["devices"]:
-            # Check for error responses in JSON data
-            if "error" in device_data:
-                device_name = device_data.get("name", "unknown")
-                error_message = device_data.get("error", "unknown error")
-                from ..exceptions import DeviceQueryError
+            sinkpower = device_data.get("sinkpower")
+            if isinstance(sinkpower, dict):
+                cec_data = sinkpower.get("cec")
+                rs232_data = sinkpower.get("rs232")
 
-                raise DeviceQueryError(device_name, error_message)
-
-            # Convert API field names from space-separated to snake_case and handle type conversion
-            converted_data = {}
-            for key, value in device_data.items():
-                # Convert "audio stream ip address" -> "audio_stream_ip_address", etc.
-                snake_case_key = key.replace(" ", "_")
-
-                # Handle special nested objects
-                if snake_case_key == "audio" and isinstance(value, list):
-                    # Parse audio output array
-                    audio_outputs = []
-                    for audio_item in value:
-                        audio_outputs.append(
-                            DeviceInfoAudioOutput(mute=audio_item.get("mute", False), name=audio_item.get("name", ""))
-                        )
-                    converted_data[snake_case_key] = audio_outputs
-                elif snake_case_key == "sinkpower" and isinstance(value, dict):
-                    # Parse sinkpower nested object
-                    cec_data = value.get("cec")
-                    rs232_data = value.get("rs232")
-
-                    cec_commands = None
-                    if cec_data:
-                        cec_commands = DeviceInfoSinkPowerCecCommands(
-                            onetouchplay=cec_data.get("onetouchplay", ""), standby=cec_data.get("standby", "")
-                        )
-
-                    rs232_commands = None
-                    if rs232_data:
-                        rs232_commands = DeviceInfoSinkPowerRs232Commands(
-                            mode=rs232_data.get("mode", ""),
-                            onetouchplay=rs232_data.get("onetouchplay", ""),
-                            param=rs232_data.get("param", ""),
-                            standby=rs232_data.get("standby", ""),
-                        )
-
-                    converted_data[snake_case_key] = DeviceInfoSinkPower(
-                        mode=value.get("mode", ""), cec=cec_commands, rs232=rs232_commands
+                cec_commands = None
+                if cec_data:
+                    cec_commands = DeviceInfoSinkPowerCecCommands(
+                        onetouchplay=cec_data.get("onetouchplay", ""), standby=cec_data.get("standby", "")
                     )
-                else:
-                    # Get the expected type for this field
-                    expected_type = field_types.get(snake_case_key)
-                    if expected_type is None:
-                        # Field not in dataclass, keep as string
-                        converted_data[snake_case_key] = value
-                        continue
 
-                    # Handle Optional[T] types (Union[T, None])
-                    origin = get_origin(expected_type)
-                    if origin is type(int | str):  # Union type
-                        args = get_args(expected_type)
-                        # Find the non-None type
-                        actual_type = next((arg for arg in args if arg is not type(None)), str)
-                    else:
-                        actual_type = expected_type
+                rs232_commands = None
+                if rs232_data:
+                    rs232_commands = DeviceInfoSinkPowerRs232Commands(
+                        mode=rs232_data.get("mode", ""),
+                        onetouchplay=rs232_data.get("onetouchplay", ""),
+                        param=rs232_data.get("param", ""),
+                        standby=rs232_data.get("standby", ""),
+                    )
 
-                    # Convert value based on actual type
-                    if actual_type is int:
-                        converted_data[snake_case_key] = int(value) if value != "" else None
-                    elif actual_type is bool:
-                        converted_data[snake_case_key] = value.lower() == "true" if isinstance(value, str) else value
-                    else:
-                        # Keep as string for str and other types
-                        if value == "null":
-                            converted_data[snake_case_key] = None
-                        else:
-                            converted_data[snake_case_key] = value
+                converted_data["sinkpower"] = DeviceInfoSinkPower(
+                    mode=sinkpower.get("mode", ""), cec=cec_commands, rs232=rs232_commands
+                )
 
-            devices.append(cls(**converted_data))
+            devices.append(_build(cls, converted_data))
 
         return devices
 
@@ -782,7 +805,12 @@ class DeviceStatus:
             response: The raw response string from the device
 
         Returns:
-            list[DeviceStatus]: List of parsed device status information objects
+            list[DeviceStatus]: List of parsed device status information objects. In a response for several devices, entries the
+                controller reports as errors (for example a device that can't be queried) are skipped.
+
+        Raises:
+            ResponseError: If the response isn't valid device JSON
+            DeviceQueryError: If the response's only device entry is an error
 
         Notes:
             Underlying NetworkHD API raw response format:
@@ -817,69 +845,10 @@ class DeviceStatus:
                 }
                 ```
         """
-        # Find the JSON content
-        json_start = response.find("{")
-        if json_start == -1:
-            raise ValueError(f"No JSON content found in response: {response}")
-
-        json_content = response[json_start:]
-
-        try:
-            data = json.loads(json_content)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in response: {e}") from e
-
-        if "devices status" not in data:
-            raise ValueError(f"No 'devices status' key found in response: {response}")
-
-        devices = []
-
-        # Get field type information from the dataclass
-        field_types = {field.name: field.type for field in fields(cls)}
-
-        for device_data in data["devices status"]:
-            # Check for error responses in JSON data
-            if "error" in device_data:
-                device_name = device_data.get("name", "unknown")
-                error_message = device_data.get("error", "unknown error")
-                from ..exceptions import DeviceQueryError
-
-                raise DeviceQueryError(device_name, error_message)
-
-            # Convert API field names from space-separated to snake_case and handle type conversion
-            converted_data = {}
-            for key, value in device_data.items():
-                # Convert "audio bitrate" -> "audio_bitrate", "hdmi out active" -> "hdmi_out_active", etc.
-                snake_case_key = key.replace(" ", "_")
-
-                # Get the expected type for this field
-                expected_type = field_types.get(snake_case_key)
-                if expected_type is None:
-                    # Field not in dataclass, keep as string
-                    converted_data[snake_case_key] = value
-                    continue
-
-                # Handle Optional[T] types (Union[T, None])
-                origin = get_origin(expected_type)
-                if origin is type(int | str):  # Union type
-                    args = get_args(expected_type)
-                    # Find the non-None type
-                    actual_type = next((arg for arg in args if arg is not type(None)), str)
-                else:
-                    actual_type = expected_type
-
-                # Convert value based on actual type
-                if actual_type is int:
-                    converted_data[snake_case_key] = int(value)
-                elif actual_type is bool:
-                    converted_data[snake_case_key] = value.lower() == "true"
-                else:
-                    # Keep as string for str and other types
-                    converted_data[snake_case_key] = value
-
-            devices.append(cls(**converted_data))
-
-        return devices
+        return [
+            _build(cls, _coerce_fields(cls, device_data))
+            for device_data in _load_device_entries(response, "devices status")
+        ]
 
 
 # =============================================================================
@@ -912,7 +881,7 @@ class BaseMatrix:
             BaseMatrix: Parsed matrix assignment information object
 
         Raises:
-            ValueError: If matrix assignment line format is invalid
+            ResponseError: If matrix assignment line format is invalid
 
         Notes:
             Ignores everything before the matrix information header and parses only the actual matrix data.
@@ -951,7 +920,7 @@ class BaseMatrix:
 
             parts = line.split()
             if len(parts) < 2:
-                raise ValueError(f"Invalid matrix assignment line format, expected 'TX RX': {line}")
+                raise ResponseError(f"Invalid matrix assignment line format, expected 'TX RX': {line}")
 
             tx = None if parts[0].upper() == "NULL" else parts[0]
             rx = parts[1]
@@ -1013,7 +982,7 @@ class MatrixAudio3:
             MatrixAudio3: Parsed ARC assignment information object
 
         Raises:
-            ValueError: If response format is invalid or missing TX for RX
+            ResponseError: If response format is invalid or missing TX for RX
 
         Notes:
             Ignores everything before the 'matrix audio3 information:' line and parses only the actual assignment data.
@@ -1046,7 +1015,7 @@ class MatrixAudio3:
             else:
                 # Odd number of lines - missing TX for last RX
                 rx = data_lines[i].strip()
-                raise ValueError(f"Invalid matrix audio3 response format, missing TX for RX: {rx}")
+                raise ResponseError(f"Invalid matrix audio3 response format, missing TX for RX: {rx}")
 
         return cls(assignments=assignments)
 
@@ -1216,7 +1185,7 @@ class VideoWallSceneList:
             VideoWallSceneList: Parsed video wall scene list information object
 
         Raises:
-            ValueError: If no valid scenes are found in response
+            ResponseError: If no valid scenes are found in response
 
         Notes:
             Underlying NetworkHD API raw response format:
@@ -1234,7 +1203,7 @@ class VideoWallSceneList:
         scene_tuples = _parse_scene_items(response, "scene list:")
 
         if not scene_tuples:
-            raise ValueError(f"No valid scenes found in response: {response}")
+            raise ResponseError(f"No valid scenes found in response: {response}")
 
         scenes = [VideoWallScene(videowall=vw, scene=sc) for vw, sc in scene_tuples]
         return cls(scenes=scenes)
@@ -1322,13 +1291,13 @@ class VideoWallLogicalScreenList:
         """Parse screen header line like 'OfficeVW-Combined_TopTwo source1'"""
         parts = line.split()
         if len(parts) < 2:
-            raise ValueError(f"Invalid screen header format, expected 'videowall-scene_logicalscreen TX': {line}")
+            raise ResponseError(f"Invalid screen header format, expected 'videowall-scene_logicalscreen TX': {line}")
 
         if "_" not in parts[0]:
-            raise ValueError(f"Invalid screen header format, missing logical screen separator '_': {line}")
+            raise ResponseError(f"Invalid screen header format, missing logical screen separator '_': {line}")
 
         if "-" not in parts[0]:
-            raise ValueError(f"Invalid screen header format, missing videowall-scene separator '-': {line}")
+            raise ResponseError(f"Invalid screen header format, missing videowall-scene separator '-': {line}")
 
         videowall_scene, logical_screen = parts[0].split("_", 1)
         videowall, scene = videowall_scene.split("-", 1)
@@ -1401,7 +1370,7 @@ class PresetMultiviewLayoutList:
             PresetMultiviewLayoutList: Parsed preset multiview layout list information object
 
         Raises:
-            ValueError: If preset multiview layout line format is invalid
+            ResponseError: If preset multiview layout line format is invalid
 
         Notes:
             Ignores everything before the 'mscene list:' line and parses only the actual layout data.
@@ -1429,7 +1398,7 @@ class PresetMultiviewLayoutList:
 
             parts = line.split()
             if len(parts) < 2:
-                raise ValueError(
+                raise ResponseError(
                     f"Invalid preset multiview layout line format, expected 'RX layout1 layout2...': {line}"
                 )
 
@@ -1463,7 +1432,7 @@ class MultiviewTile:
             MultiviewTile: Parsed tile configuration object
 
         Raises:
-            ValueError: If tile configuration format is invalid
+            ResponseError: If tile configuration format is invalid
 
         Notes:
             Underlying NetworkHD API raw response format:
@@ -1478,14 +1447,14 @@ class MultiviewTile:
         """
         parts = tile_config.split(":")
         if len(parts) != 3:
-            raise ValueError(f"Invalid tile configuration: {tile_config}")
+            raise ResponseError(f"Invalid tile configuration: {tile_config}")
 
         tx = parts[0]
         coords = parts[1].split("_")
         scaling = parts[2]
 
         if len(coords) != 4:
-            raise ValueError(f"Invalid tile coordinates: {parts[1]}")
+            raise ResponseError(f"Invalid tile coordinates: {parts[1]}")
 
         validated_scaling = cast(Literal["fit", "stretch"], scaling)
         return cls(
@@ -1524,7 +1493,7 @@ class CustomMultiviewLayoutList:
             CustomMultiviewLayoutList: Parsed custom multiview layout list information object
 
         Raises:
-            ValueError: If multiview layout line format is invalid or tile configuration is invalid
+            ResponseError: If multiview layout line format is invalid or tile configuration is invalid
 
         Notes:
             Underlying NetworkHD API raw response format:
@@ -1548,13 +1517,13 @@ class CustomMultiviewLayoutList:
 
             parts = line.split()
             if len(parts) < 3:
-                raise ValueError(f"Invalid multiview layout line format, expected 'RX mode tile1 tile2...': {line}")
+                raise ResponseError(f"Invalid multiview layout line format, expected 'RX mode tile1 tile2...': {line}")
 
             rx = parts[0]
             mode = parts[1]
 
             if mode not in ["tile", "overlay"]:
-                raise ValueError(f"Invalid multiview mode '{mode}', expected 'tile' or 'overlay': {line}")
+                raise ResponseError(f"Invalid multiview mode '{mode}', expected 'tile' or 'overlay': {line}")
 
             tile_configs = parts[2:]
 
@@ -1563,7 +1532,7 @@ class CustomMultiviewLayoutList:
                 try:
                     tiles.append(MultiviewTile.parse_tile_config(tile_config))
                 except ValueError as e:
-                    raise ValueError(f"Invalid tile configuration in line '{line}': {e}") from e
+                    raise ResponseError(f"Invalid tile configuration in line '{line}': {e}") from e
 
             validated_mode = cast(Literal["tile", "overlay"], mode)
             configurations.append(CustomMultiviewLayout(rx=rx, mode=validated_mode, tiles=tiles))

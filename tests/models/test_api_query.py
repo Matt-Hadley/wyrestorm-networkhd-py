@@ -8,9 +8,13 @@ This test suite covers:
 - All parsing utilities and model classes
 """
 
+import json
+from collections.abc import Callable
+from dataclasses import dataclass
+
 import pytest
 
-from wyrestorm_networkhd.exceptions import DeviceNotFoundError
+from wyrestorm_networkhd.exceptions import DeviceNotFoundError, DeviceQueryError, ResponseError
 from wyrestorm_networkhd.models.api_query import (
     BaseMatrix,
     CustomMultiviewLayoutList,
@@ -1752,3 +1756,225 @@ class TestCustomMultiviewLayoutList:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# =============================================================================
+# Shared JSON field conversion (DeviceJsonString, DeviceInfo, DeviceStatus)
+# =============================================================================
+
+
+def _devicejsonstring_response(extra: str) -> str:
+    return (
+        "device json string:\n"
+        '[{"aliasName": "SOURCE1", "deviceType": "Transmitter", "group": [], "ip": "169.254.232.229", '
+        f'"online": true, "sequence": 1, "trueName": "NHD-140-TX-E4CE02102EE1"{extra}}}]'
+    )
+
+
+def _deviceinfo_response(extra: str) -> str:
+    return f'devices json info:\n{{"devices": [{{"aliasname": "SOURCE1", "name": "NHD-140-TX-E4CE02102EE3"{extra}}}]}}'
+
+
+def _devicestatus_response(extra: str) -> str:
+    return (
+        "devices status info:\n"
+        f'{{"devices status": [{{"aliasname": "SOURCE1", "name": "NHD-140-TX-E4CE02102EE1"{extra}}}]}}'
+    )
+
+
+@dataclass
+class JsonModelCase:
+    """One JSON device model with an int and a bool field to exercise."""
+
+    model: type
+    build: Callable[[str], str]
+    int_key: str
+    int_attr: str
+    bool_key: str
+    bool_attr: str
+
+    def response_with(self, **values: str) -> str:
+        """Build a one-device response whose JSON keys (given by attribute name) have the given raw JSON values."""
+        response = self.build("")
+        for attr, raw in values.items():
+            key = getattr(self, attr.replace("_attr", "_key"))
+            response = response.replace(f'"{key}": 1, ', "").replace(f'"{key}": true, ', "")
+            response = response.replace("}]", f', "{key}": {raw}}}]')
+        return response
+
+
+JSON_MODELS = [
+    pytest.param(
+        JsonModelCase(DeviceJsonString, _devicejsonstring_response, "sequence", "sequence", "online", "online"),
+        id="jsonstring",
+    ),
+    pytest.param(JsonModelCase(DeviceInfo, _deviceinfo_response, "enc_fps", "enc_fps", "hdcp", "hdcp"), id="info"),
+    pytest.param(
+        JsonModelCase(
+            DeviceStatus,
+            _devicestatus_response,
+            "stream frame rate",
+            "stream_frame_rate",
+            "encoding enable",
+            "encoding_enable",
+        ),
+        id="status",
+    ),
+]
+
+
+class TestJsonModelFieldConversion:
+    """Unknown keys, empty values and JSON booleans across all JSON device models."""
+
+    @pytest.mark.parametrize("case", JSON_MODELS)
+    def test_unknown_field_is_skipped(self, case):
+        # Arrange
+        response = case.build(', "some new field": "x", "another_one": 5')
+
+        # Act
+        result = case.model.parse(response)
+
+        # Assert
+        assert len(result) == 1
+        assert not hasattr(result[0], "some_new_field")
+
+    @pytest.mark.parametrize("case", JSON_MODELS)
+    def test_empty_values_become_none(self, case):
+        # Arrange
+        response = case.response_with(int_attr='""', bool_attr='""')
+
+        # Act
+        result = case.model.parse(response)
+
+        # Assert
+        assert getattr(result[0], case.int_attr) is None
+        assert getattr(result[0], case.bool_attr) is None
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [("true", True), ("false", False), ("yes", True), ("No", False), (True, True), (False, False)],
+    )
+    @pytest.mark.parametrize("case", JSON_MODELS)
+    def test_bool_values(self, case, raw, expected):
+        # Arrange
+        response = case.response_with(bool_attr=json.dumps(raw))
+
+        # Act
+        result = case.model.parse(response)
+
+        # Assert
+        assert getattr(result[0], case.bool_attr) is expected
+
+    @pytest.mark.parametrize("raw", ['"60"', "60"])
+    @pytest.mark.parametrize("case", JSON_MODELS)
+    def test_int_values_from_string_or_number(self, case, raw):
+        # Arrange
+        response = case.response_with(int_attr=raw)
+
+        # Act
+        result = case.model.parse(response)
+
+        # Assert
+        assert getattr(result[0], case.int_attr) == 60
+
+    @pytest.mark.parametrize("case", JSON_MODELS)
+    def test_invalid_int_raises_response_error(self, case):
+        # Arrange
+        response = case.response_with(int_attr='"sixty"')
+
+        # Act & Assert
+        with pytest.raises(ResponseError, match=case.int_key):
+            case.model.parse(response)
+
+    @pytest.mark.parametrize("case", JSON_MODELS)
+    def test_missing_required_field_raises_response_error(self, case):
+        # Arrange
+        response = case.build("").replace('"aliasName": "SOURCE1", ', "").replace('"aliasname": "SOURCE1", ', "")
+
+        # Act & Assert
+        with pytest.raises(ResponseError):
+            case.model.parse(response)
+
+
+class TestDeviceListErrorEntries:
+    """Error entries ({"name": ..., "error": ...}) in 'config get device info/status' lists."""
+
+    @pytest.mark.parametrize(
+        "model, header, key",
+        [(DeviceInfo, "devices json info", "devices"), (DeviceStatus, "devices status info", "devices status")],
+    )
+    def test_error_entry_in_list_is_skipped(self, model, header, key):
+        # Arrange
+        response = (
+            f'{header}:\n{{"{key}": ['
+            '{"aliasname": "DISPLAY1", "name": "NHD-210-RX-E4CE02107132"},'
+            '{"aliasname": "", "error": "no such device", "name": "SOURCE9"}]}'
+        )
+
+        # Act
+        result = model.parse(response)
+
+        # Assert
+        assert [device.name for device in result] == ["NHD-210-RX-E4CE02107132"]
+
+    @pytest.mark.parametrize(
+        "model, header, key",
+        [(DeviceInfo, "devices json info", "devices"), (DeviceStatus, "devices status info", "devices status")],
+    )
+    def test_only_entry_is_error_raises(self, model, header, key):
+        # Arrange
+        response = f'{header}:\n{{"{key}": [{{"aliasname": "", "error": "no such device", "name": "SOURCE9"}}]}}'
+
+        # Act & Assert
+        with pytest.raises(DeviceQueryError) as exc_info:
+            model.parse(response)
+        assert exc_info.value.device_name == "SOURCE9"
+        assert exc_info.value.error_message == "no such device"
+
+    def test_spec_example_device_status(self):
+        """Appendix A 'config get device status' example (NetworkHD API v6.7, PDF page 75)."""
+        # Arrange
+        response = """devices status info:
+{
+"devices status" : [
+    {
+        "aliasname" : "SOURCE1",
+        "audio stream ip address" : "224.48.46.225",
+        "encoding enable" : "true",
+        "hdmi in active" : "true",
+        "hdmi in frame rate" : "60",
+        "line out audio enable" : "false",
+        "name" : "NHD-140-TX-E4CE02102EE1",
+        "resolution" : "1920x1080",
+        "stream frame rate" : "60",
+        "stream resolution" : "1920x1080",
+        "video stream ip address" : "224.16.46.225"
+    },
+    {
+        "aliasname" : "DISPLAY1",
+        "audio bitrate" : "1536000",
+        "audio input format" : "lpcm",
+        "hdcp status" : "hdcp14",
+        "hdmi out active" : "true",
+        "hdmi out audio enable" : "true",
+        "hdmi out frame rate" : "60",
+        "hdmi out resolution" : "1920x1080",
+        "line out audio enable" : "true",
+        "name" : "NHD-210-RX-E4CE02107132",
+        "stream error count" : "0",
+        "stream frame rate" : "60",
+        "stream resolution" : "1920x1080"
+    }
+]
+}"""
+
+        # Act
+        tx, rx = DeviceStatus.parse(response)
+
+        # Assert
+        assert tx.encoding_enable is True
+        assert tx.line_out_audio_enable is False
+        assert tx.hdmi_in_frame_rate == 60
+        assert rx.audio_bitrate == 1536000
+        assert rx.stream_error_count == 0
+        assert rx.hdcp_status == "hdcp14"
