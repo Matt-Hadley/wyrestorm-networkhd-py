@@ -119,19 +119,23 @@ make test
 ### Docstring Example
 
 ````python
-async def send_command(self, command: str, timeout: float = 10.0) -> str:
+async def send_command(
+    self, command: str, response_timeout: float = 10.0, response_line_timeout: float = 0.3
+) -> str:
     """Send a command to the NetworkHD device.
 
     Args:
         command: The command string to send to the device.
-        timeout: Maximum time to wait for response in seconds.
+        response_timeout: Maximum time to wait for the response in seconds.
+        response_line_timeout: Idle gap in seconds after a line that ends the response.
 
     Returns:
         The response string from the device.
 
     Raises:
         ConnectionError: If not connected to the device.
-        CommandError: If the command fails or times out.
+        CommandError: If the command contains a line break or the device answers ERROR.
+        TimeoutError: If the response has not ended within response_timeout.
 
     Example:
         ```python

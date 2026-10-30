@@ -48,9 +48,6 @@ GitHub Actions workflows for a Python package.
 # Coverage badge (for gist updates)
 GIST_SECRET=your_github_personal_access_token_with_gist_scope
 GIST_ID=your_coverage_badge_gist_id
-
-# Release-please (if using custom token)
-MY_RELEASE_PLEASE_TOKEN=your_github_token_with_repo_scope
 ```
 
 **Note:** PyPI authentication uses trusted publisher (no API token needed).

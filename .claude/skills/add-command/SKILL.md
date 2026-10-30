@@ -27,7 +27,7 @@ chapter of it, with methods grouped under `# ====` banners named after the PDF s
        bare reply
 3. **If it returns data, add a model** in `models/api_query.py` (or `api_notifications.py` for notifications): a
    `@dataclass` with a `parse(cls, response: str)` classmethod. Its docstring shows the raw response format and an
-   example from the PDF. Raise `ValueError` when required fields are missing. `Version` is a small example to copy.
+   example from the PDF. Raise `ResponseError` when required fields are missing. `Version` is a small example to copy.
 4. **Test it.**
    - Command tests in `tests/commands/test_<module>.py` use `echoing_client()` from `tests/commands/__init__.py` (it prepends
      the command echo to the scripted reply, like a real controller) and Arrange / Act / Assert. Cover each option, the exact command string sent, and a response that fails validation.

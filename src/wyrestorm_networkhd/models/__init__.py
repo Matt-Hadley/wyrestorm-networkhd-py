@@ -1,6 +1,6 @@
 """NetworkHD API data models.
 
-This module contains Pydantic models for NetworkHD API responses and notifications.
-These models provide type safety and automatic validation for all API interactions.
+This module contains dataclasses for NetworkHD API responses and notifications, each with a
+``parse()`` classmethod that builds it from the raw response.
 
 """

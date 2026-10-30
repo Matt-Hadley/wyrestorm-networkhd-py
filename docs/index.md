@@ -147,8 +147,8 @@ serial port. Extra keyword arguments are passed to async-pyserial's `SerialPortO
 
 `send_command()`, which every `NHDAPI` method uses, takes two timeouts:
 
-- `response_timeout` (default 10 s): how long to wait for the reply to start. If nothing arrives, it raises
-  `TimeoutError`.
+- `response_timeout` (default 10 s): the most the whole reply may take. If nothing arrives, or lines are still arriving
+  when it expires, it raises `TimeoutError` rather than returning a truncated reply.
 - `response_line_timeout` (default 0.3 s): the reply ends when no further line arrives for this long. Raise it for slow,
   multi-line replies.
 

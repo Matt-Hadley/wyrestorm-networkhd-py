@@ -4,7 +4,7 @@ The library logs under the ``wyrestorm_networkhd`` logger and, like any library,
 logging to the application: importing the package adds only a ``NullHandler``. ``setup_logging()`` is an
 opt-in helper for scripts and development that attaches console/file handlers to the package logger.
 
-For usage examples, see README.md.
+For usage examples, see docs/index.md and CONTRIBUTING.md.
 """
 
 import logging
