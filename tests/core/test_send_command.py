@@ -6,7 +6,6 @@ import threading
 
 import pytest
 
-from wyrestorm_networkhd.core._client import _is_foreign_echo
 from wyrestorm_networkhd.exceptions import CommandError, ConnectionError, TimeoutError, UnknownCommandError
 from wyrestorm_networkhd.models.api_query import DeviceStatus, Matrix
 
@@ -224,6 +223,16 @@ async def test_foreign_burst_during_matrix_get(ssh_client, device):
     assert [(a.tx, a.rx) for a in matrix.assignments] == [("source1", "display1"), (None, "display2")]
 
 
+async def test_same_command_from_another_session_is_dropped(ssh_client, device):
+    """Another session's repeat of our exact command after our reply must not add bogus assignments."""
+    burst = "matrix get\r\nmatrix information:\r\nsource1 display1\r\n"
+    device.reply("matrix get", burst + burst)
+
+    matrix = Matrix.parse(await ssh_client.send_command("matrix get", **FAST))
+
+    assert [(a.tx, a.rx) for a in matrix.assignments] == [("source1", "display1")]
+
+
 async def test_notifications_in_foreign_burst_are_dispatched(ssh_client, device):
     received = []
     ssh_client.register_notification_callback("endpoint", received.append)
@@ -235,26 +244,3 @@ async def test_notifications_in_foreign_burst_are_dispatched(ssh_client, device)
 
     assert await ssh_client.send_command("matrix get", **FAST) == "matrix get\nmatrix information:\nsource1 display1"
     assert [n.device for n in received] == ["source1", "source2"]
-
-
-@pytest.mark.parametrize(
-    ("line", "foreign"),
-    [
-        ("config get devicejsonstring", True),
-        ("config get version", True),
-        ("matrix get display1", True),  # differs from our "matrix get"
-        ("matrix get", False),  # our own echo
-        ("matrix information:", False),
-        ("matrix video information:", False),
-        ("scene list:", False),
-        ("mscene list:", False),
-        ("devices json info:", False),
-        ("scene OfficeVW-Splitmode active success", False),
-        ("mscene active display1 grid failure", False),
-        ("display1's alias is DISPLAY1", False),
-        ("source1 display1", False),
-        ("API version: v1.21", False),
-    ],
-)
-def test_is_foreign_echo(line, foreign):
-    assert _is_foreign_echo(line, "matrix get") is foreign

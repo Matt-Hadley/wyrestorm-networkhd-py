@@ -60,8 +60,9 @@ def _is_foreign_echo(line: str, command: str) -> bool:
     """Return whether a line looks like the echo of a command other than ours (sent by another API session).
 
     Reply lines that start with a verb are excluded: headers end with ":" ("matrix information:", "scene list:") and
-    acknowledgements end with success/failure ("scene OfficeVW-Splitmode active success"). Another session's echo
-    of exactly our command can't be told apart from ours; its reply is the same data, so taking it is harmless.
+    acknowledgements end with success/failure ("scene OfficeVW-Splitmode active success"), and replies about a named
+    object put a possessive second ("scene OfficeVW-Splitmode's source in [1,2] change to source1"). A repeat of our
+    own command after our echo is another session's and is dropped by the caller.
     """
     words = line.split()
     return (
@@ -70,6 +71,7 @@ def _is_foreign_echo(line: str, command: str) -> bool:
         and line != command
         and not line.endswith(":")
         and words[-1].lower() not in ("success", "failure")
+        and not (len(words) > 1 and words[1].endswith("'s"))
     )
 
 
@@ -532,7 +534,7 @@ class _BaseNetworkHDClient(ABC):
                 raise ConnectionLostError(self._target, self._connection_lost_reason or "connection closed")
             if echo_index is None and line == command:
                 echo_index, foreign = len(lines), False
-            elif _is_foreign_echo(line, command):
+            elif line == command or _is_foreign_echo(line, command):
                 foreign = True
             if foreign and echo_index is not None:
                 self.logger.debug(f"Dropping another session's line during '{command}': {line}")
@@ -555,7 +557,7 @@ class _BaseNetworkHDClient(ABC):
                 if awaiting_echo:
                     raise TimeoutError(command, response_timeout) from None
                 break  # the idle gap ends the response, even if it ran past the deadline
-            if line is not None and asyncio.get_running_loop().time() > deadline:
+            if line is not None and loop.time() > deadline:
                 raise TimeoutError(command, response_timeout)
             add(line)
 
