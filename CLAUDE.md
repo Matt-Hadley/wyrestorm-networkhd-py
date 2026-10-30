@@ -9,7 +9,8 @@ public method's name, arguments or return type breaks that integration.
 - `core/`: `NetworkHDClientSSH` and `NetworkHDClientRS232` on a shared `_client.py` base (sending, response
   handling, notification dispatch).
 - `commands/`: one module per chapter of `docs/resources/NetworkHD_API_v6.7.pdf`, methods under `# ====` banners
-  named after the PDF sections. `NHDAPI` discovers the command classes itself.
+  named after the PDF sections. `NHDAPI` (`commands/__init__.py`) creates one instance of each command class
+  explicitly; a new module needs adding there.
 - `models/`: dataclasses with a `parse()` classmethod for query responses (`api_query.py`) and notifications
   (`api_notifications.py`).
 - `docs/`: MkDocs. The reference pages are generated from the modules; don't hand-edit them.

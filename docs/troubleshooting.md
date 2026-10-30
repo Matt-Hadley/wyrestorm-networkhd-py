@@ -56,8 +56,11 @@ The policy must be `"auto_add"`, `"reject"` or `"warn"`.
 
 ### `ConnectionLostError: Connection to '...' was lost`
 
-The link dropped (network outage, controller reboot). `is_connected()` is now `False`. Call `await client.reconnect()`;
-see [Reconnecting](index.md#reconnecting).
+The link dropped (network outage, controller reboot), or `disconnect()`/`connect()` was called while the command
+was waiting. `is_connected()` is now `False`. Call `await client.reconnect()`; see [Reconnecting](index.md#reconnecting).
+
+Over RS232 a failed write marks the link as lost, but a cable pulled without an error shows up only as commands raising
+`TimeoutError`.
 
 ### RS232: the port won't open
 
@@ -76,7 +79,8 @@ see [Reconnecting](index.md#reconnecting).
 
 ### `TimeoutError: Operation '...' timed out after 10.0s`
 
-Nothing came back within `response_timeout`. Check the connection, then try a longer timeout for that command:
+The reply didn't finish within `response_timeout`: nothing came back, or lines were still arriving when it expired (a
+reply is never returned cut short at the deadline). Check the connection, then try a longer timeout for that command:
 
 ```python
 response = await client.send_command("config get devicejsonstring", response_timeout=20.0)
@@ -134,7 +138,7 @@ Everything below is importable from `wyrestorm_networkhd` and subclasses `Networ
 | `ConnectionLostError` | `ConnectionError`          | A command is sent, or was waiting, after the link dropped        |
 | `ReconnectionError`   | `ConnectionError`          | Every `reconnect()` attempt failed (`attempts`, `last_error`)    |
 | `AuthenticationError` |                            | The controller rejected the SSH credentials                      |
-| `TimeoutError`        | `builtins.TimeoutError`    | No reply within `response_timeout`                               |
+| `TimeoutError`        | `builtins.TimeoutError`    | The reply didn't finish within `response_timeout`                |
 | `CommandError`        |                            | The controller answered `ERROR`, or the command contained CR/LF  |
 | `UnknownCommandError` | `CommandError`             | The controller answered `unknown command`                        |
 | `ResponseError`       | `ValueError`               | A reply couldn't be parsed or wasn't the expected acknowledgment |
