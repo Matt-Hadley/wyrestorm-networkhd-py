@@ -190,7 +190,7 @@ class _BaseNetworkHDClient(ABC):
         self._buffer = b""
         self._pending_serialinfo: tuple[str, int] | None = None
         self._pending_irinfo: str | None = None
-        self._skip_line = False  # drop everything up to the next line break (after discarding framed data)
+        self._skip_line = False  # drop everything up to the next line break (after discarding an overlong line)
 
         # Command response handling: lines go to the command currently waiting, None tells it the link died
         self._response_queue: asyncio.Queue[str | None] | None = None
@@ -570,28 +570,20 @@ class _BaseNetworkHDClient(ABC):
         Multi-line notifications are assembled first: ``notify serialinfo`` by its <infolen> byte count,
         ``notify irinfo`` while lines look like IR data, until its closing quote; the handler gets header and data
         as one "\\n"-joined string. Lines and pending notifications are capped at 64 KiB; a serialinfo with a larger
-        <infolen>, or whose data isn't followed by a line break, is dropped.
+        <infolen> is dropped.
         """
         self._buffer += data
         while True:
             if self._pending_serialinfo is not None:
                 header, length = self._pending_serialinfo
-                # The data must end a line: either it ends with LF itself or CR LF / LF follows it
-                serial_data = self._buffer[:length]
-                rest = self._buffer[length:]
-                if len(serial_data) < length or (not serial_data.endswith(b"\n") and rest in (b"", b"\r")):
+                if len(self._buffer) < length:
                     return
+                serial_data, self._buffer = self._buffer[:length], self._buffer[length:]
                 self._pending_serialinfo = None
-                if serial_data.endswith(b"\n"):
-                    self._buffer = rest
-                elif rest.startswith((b"\r\n", b"\n")):
-                    self._buffer = rest[rest.index(b"\n") + 1 :]
-                else:
-                    # <infolen> was wrong: drop the notification and the rest of its line, never parse data as lines
-                    self.logger.warning(f"Dropping serialinfo whose data does not match its length: {header!r}")
-                    self._buffer = rest
-                    self._skip_line = True
-                    continue
+                # No terminator is promised after the data: consume a line break if one is already here; anything
+                # else (including a late one) is parsed as normal lines
+                if self._buffer.startswith((b"\r\n", b"\n")):
+                    self._buffer = self._buffer[self._buffer.index(b"\n") + 1 :]
                 self._dispatch_notification(f"{header}\n{serial_data.decode('utf-8', errors='replace')}")
                 continue
 

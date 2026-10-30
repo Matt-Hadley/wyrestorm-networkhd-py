@@ -117,7 +117,7 @@ async def test_serialinfo_length_counts_bytes(ssh_client, device):
     received = []
     ssh_client.register_notification_callback("serialinfo", received.append)
     data = "café"  # 5 bytes in UTF-8
-    device.shell.feed(f"notify serialinfo display1 ascii 5:\r\n{data}\r\nnotify endpoint + source1\r\n")
+    device.shell.feed(f"notify serialinfo display1 ascii 5:\r\n{data}notify endpoint + source1\r\n")
     await settle()
 
     assert [n.serial_data for n in received] == [data]
@@ -134,28 +134,29 @@ async def test_serialinfo_data_ending_in_line_break_needs_no_extra_one(ssh_clien
     assert [n.device for n in endpoint] == ["source1"]
 
 
-async def test_serialinfo_waits_for_line_break_after_data(ssh_client, device):
+async def test_serialinfo_is_dispatched_without_waiting_for_line_break(ssh_client, device):
     received = []
     ssh_client.register_notification_callback("serialinfo", received.append)
     device.shell.feed("notify serialinfo display1 ascii 2:\r\nab\r")
     await settle()
-    assert received == []
-    device.shell.feed("\n")
+    assert [n.serial_data for n in received] == ["ab"]
+    device.shell.feed("\n")  # the late line break is just an empty line
     await settle()
     assert [n.serial_data for n in received] == ["ab"]
 
 
-async def test_serialinfo_with_wrong_length_is_dropped_not_reparsed(ssh_client, device, caplog):
-    """A short <infolen> must not let the rest of the data be read as lines (e.g. a fake notification)."""
+async def test_serialinfo_data_followed_directly_by_notifications(ssh_client, device):
+    """Regression: data not followed by a line break was dropped, and the next line with it."""
     serial, endpoint = [], []
     ssh_client.register_notification_callback("serialinfo", serial.append)
     ssh_client.register_notification_callback("endpoint", endpoint.append)
-    device.shell.feed("notify serialinfo display1 ascii 3:\r\nabcnotify endpoint + fake\r\nnotify endpoint + real\r\n")
+    device.shell.feed("notify serialinfo display1 hex 5:\r\n41 42")
+    await settle()
+    device.shell.feed("notify endpoint + source1\r\nnotify endpoint + source2\r\n")
     await settle()
 
-    assert serial == []
-    assert [n.device for n in endpoint] == ["real"]
-    assert "does not match its length" in caplog.text
+    assert [n.serial_data for n in serial] == ["41 42"]
+    assert [n.device for n in endpoint] == ["source1", "source2"]
 
 
 @pytest.mark.parametrize("length", ["65537", "1" * 200])
