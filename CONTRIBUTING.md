@@ -19,7 +19,7 @@ feature requests to code contributions and documentation improvements.
 
 ### Prerequisites
 
-- **Python 3.12+** (see `pyproject.toml` for exact requirements)
+- **Python 3.11+** (see `requires-python` in `pyproject.toml`)
 - **Git** for version control
 - **Make** (optional but recommended for using project commands)
 
@@ -45,7 +45,7 @@ This single command will:
 
 ```bash
 # Create virtual environment
-python3.12 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install package in development mode with all dependencies
@@ -67,7 +67,7 @@ make dev-workflow
 make format           # Format code with Ruff and Prettier
 make lint            # Run linting checks
 make test            # Run all tests
-make test-fast       # Run only fast unit tests
+make test-fast       # Run all tests except integration and performance
 make test-cov        # Run tests with coverage report
 make check           # Run all quality checks
 make build           # Build and validate package
@@ -85,11 +85,11 @@ make help
 Tests are organized into categories using pytest markers:
 
 ```bash
-# Unit tests (fast, no external dependencies)
+# Everything except integration and performance tests (what dev-workflow runs)
 make test-fast
-# or: pytest -m "unit"
+# or: pytest -m "not integration and not performance"
 
-# Integration tests (require device/mocking)
+# Integration tests (mocked clients, no hardware needed)
 pytest -m "integration"
 
 # Performance tests (slow, benchmark-focused)
@@ -191,46 +191,15 @@ test: add unit tests for notification handlers
 
 ### Bug Report Template
 
-When creating a bug report, please include:
-
-```markdown
-## Bug Description
-
-Brief, clear description of the issue.
-
-## Steps to Reproduce
-
-1. Create client with these settings...
-2. Execute this command...
-3. Observe the error...
-
-## Expected Behavior
-
-What you expected to happen.
-
-## Actual Behavior
-
-What actually happened, including full error messages.
-
-## Environment
-
-- OS: [e.g., Ubuntu 22.04, Windows 11]
-- Python Version: [e.g., 3.12.1]
-- Package Version: [e.g., 1.2.3]
-- Device Type: [e.g., NHD-400-TX, NHD-110-RX]
-
-## Additional Context
-
-- Log output (with DEBUG level if relevant)
-- Device firmware version
-- Network configuration details
-```
+[Open a bug report](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/issues/new/choose) and fill in the template.
+It asks for the controller model, the output of `config get version`, the connection type (SSH or RS232), the library
+version and a debug log from `setup_logging(level="DEBUG")`.
 
 ## 💡 Feature Requests
 
 ### Before Requesting
 
-- **Check existing issues** and discussions
+- **Check existing issues**
 - **Review the NetworkHD raw API documentation** to ensure the feature is supported by the device
 - **Consider the scope** - does it fit the project's goals?
 - **Think about backwards compatibility**
@@ -248,13 +217,9 @@ Specific scenario where this feature would be valuable.
 
 ## Proposed API
 
-How you envision the feature would be used:
+How you envision the feature would be used, for example:
 
-\`\`\`python
-
-# Example of how the feature might work
-
-api.new_feature.do_something(param1, param2) \`\`\`
+    await api.new_feature.do_something(param1, param2)
 
 ## Implementation Notes
 
@@ -288,17 +253,12 @@ Other approaches you've considered or researched.
 
 ### Logging and Debugging
 
-The package includes comprehensive logging for development and debugging:
-
-#### Default Logging Configuration
-
-- **Console output** at INFO level by default
-- **Structured logging** with timestamps and module names
-- **Configurable levels**: DEBUG, INFO, WARNING, ERROR, CRITICAL
-
-#### Customizing Logging During Development
+The package logs to the `wyrestorm_networkhd` logger but doesn't configure logging: importing it only adds a
+`NullHandler`. To see its logs during development, call the opt-in helper, which configures that logger only:
 
 ```python
+from pathlib import Path
+
 from wyrestorm_networkhd.logging_config import setup_logging
 
 # Enable verbose debug logging
@@ -307,7 +267,7 @@ setup_logging(level="DEBUG")
 # Log to file for analysis
 setup_logging(
     level="DEBUG",
-    log_file="logs/development.log"
+    log_file=Path("logs/development.log")
 )
 
 # Custom format for development
@@ -317,48 +277,42 @@ setup_logging(
 )
 ```
 
-#### Environment Variable Control
-
-```bash
-# Set log level via environment
-export LOG_LEVEL=DEBUG
-python your_development_script.py
-
-# Enable all debug output during testing
-LOG_LEVEL=DEBUG make test
-```
-
 #### What Gets Logged
 
-- **DEBUG**: Command/response details, SSH operations, connection state changes
-- **INFO**: Connection events, command execution, major operations
-- **WARNING**: Recoverable issues, fallback behaviors
-- **ERROR**: Connection failures, command errors, exceptions
-- **CRITICAL**: System failures, unrecoverable errors
+- **DEBUG**: Commands sent, raw responses, notifications, skipped lines
+- **INFO**: Connecting, disconnecting, connection state changes, reconnection attempts
+- **WARNING**: Lost connections, failed reconnection attempts, notifications that couldn't be parsed
+- **ERROR**: Exceptions raised by notification callbacks
 
 ### Working with Real Devices
 
 When developing with actual NetworkHD devices:
 
 ```python
-# Enable detailed logging for device interaction
+import asyncio
+
+from wyrestorm_networkhd import NetworkHDClientSSH
 from wyrestorm_networkhd.logging_config import setup_logging
-setup_logging(level="DEBUG")
 
-# Test with real device
-client = NetworkHDClientSSH(
-    host="192.168.1.100",
-    port=10022,
-    username="wyrestorm",
-    password="networkhd",
-    ssh_host_key_policy="warn"  # Use "warn" for development
-)
 
-async with client:
-    # Your development code here
-    response = await client.send_command("help")
-    print(f"Device response: {response}")
+async def main():
+    setup_logging(level="DEBUG")
+    client = NetworkHDClientSSH(
+        host="192.168.1.100",
+        port=10022,
+        username="wyrestorm",
+        password="networkhd",
+        ssh_host_key_policy="warn",
+    )
+    async with client:
+        print(await client.send_command("config get version"))
+
+
+asyncio.run(main())
 ```
+
+The controller must have SSH enabled (it ships with only Telnet). Prefer read-only `config get ...` and `matrix get`
+commands when testing against a live system.
 
 ### Performance Considerations
 
@@ -469,8 +423,7 @@ BREAKING CHANGE: Client constructor now requires explicit protocol"
 
 ### Getting Help
 
-- **GitHub Issues**: Bug reports and feature requests
-- **GitHub Discussions**: General questions and ideas
+- **GitHub Issues**: Bug reports, feature requests and questions
 - **Documentation**: Check the docs site first
 - **Code Examples**: Look at tests for usage patterns
 
@@ -492,6 +445,5 @@ By contributing to this project, you agree that your contributions will be licen
 
 - 📖 **Documentation**: https://matt-hadley.github.io/wyrestorm-networkhd-py/
 - 🐛 **Issues**: https://github.com/Matt-Hadley/wyrestorm-networkhd-py/issues
-- 💬 **Discussions**: https://github.com/Matt-Hadley/wyrestorm-networkhd-py/discussions
 
 **Thank you for contributing!** 🎉
