@@ -127,6 +127,15 @@ instead of raising, even if there is only one device.
 The reply couldn't be parsed into a model, or a command wasn't acknowledged as expected. Turn on debug logging and open
 an issue with the raw response from the log.
 
+### Other clients' commands show up in the debug log
+
+The controller sends every API session's command echoes and replies to all connected sessions, so commands from another
+client (a monitoring script, a control system) appear in your debug log. The client ignores them: lines before your
+command's echo are dropped, and another command's echo after it ends your reply and is dropped with the rest of that
+burst ("Dropping another session's line"). If two sessions send the identical command at once, either reply may be
+taken; it is the same data. A foreign reply that interleaves with yours line by line can't be untangled and fails with
+`ResponseError` or `TimeoutError`, so avoid polling the controller from many clients at once.
+
 ## 📡 Notification Issues
 
 ### Callbacks never fire
