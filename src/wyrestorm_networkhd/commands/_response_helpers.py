@@ -100,18 +100,18 @@ def parse_json_response(response: str, prefix: str) -> dict[str, Any]:
         dict[str, Any]: The parsed JSON data as a dictionary
 
     Raises:
-        ValueError: If the response format is invalid or contains invalid JSON
+        ResponseError: If the response format is invalid or contains invalid JSON
 
     Notes:
         Extracts JSON data that appears after the specified prefix in the response.
         Handles both valid JSON parsing and format validation.
     """
     if prefix not in response:
-        raise ValueError(f"Invalid response format, expected '{prefix}': {response}")
+        raise ResponseError(f"Invalid response format, expected '{prefix}': {response}")
 
     json_part = response.split(prefix)[1].strip()
     try:
         parsed_data: dict[str, Any] = json.loads(json_part)
         return parsed_data
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in response: {e}") from e
+        raise ResponseError(f"Invalid JSON in response: {e}") from e
