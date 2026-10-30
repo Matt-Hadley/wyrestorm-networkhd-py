@@ -196,3 +196,49 @@ def test_ssh_validation(kwargs, message):
 def test_rs232_validation(kwargs, message):
     with pytest.raises(ValueError, match=message):
         NetworkHDClientRS232(**{"port": "/dev/ttyFAKE0", "baudrate": 9600, **kwargs})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["disconnect", "connect"])
+async def test_disconnect_or_connect_fails_the_waiting_command(ssh_client, device, action):
+    """Regression: the command kept waiting until response_timeout, and could get a line from the new session."""
+    task = asyncio.create_task(ssh_client.send_command("cmd", response_timeout=5.0, response_line_timeout=0.05))
+    await asyncio.sleep(0.05)
+    device.reply("cmd", "cmd\r\nfrom the new session\r\n")
+
+    await getattr(ssh_client, action)()
+
+    with pytest.raises(ConnectionLostError):
+        await asyncio.wait_for(task, timeout=1.0)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_connects_leave_one_connection(device):
+    """Regression: two connect() calls at once started two reader tasks."""
+    client = make_ssh_client()
+
+    await asyncio.gather(client.connect(), client.connect())
+
+    assert len(device.ssh_clients) == 2
+    assert device.ssh_clients[0].closed and not device.ssh_clients[1].closed
+    readers = [t for t in asyncio.all_tasks() if t.get_coro().__name__ == "_message_dispatcher"]
+    assert readers == [client._message_dispatcher_task]
+    assert client.is_connected()
+    await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_connect_closes_the_session(device):
+    """Regression: cancelling connect() left the state 'connecting' and the SSH session open."""
+    device.connect_delay = 0.1
+    client = make_ssh_client()
+    task = asyncio.create_task(client.connect())
+    await asyncio.sleep(0.02)
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert client.get_connection_state() == "disconnected"
+    ssh = device.ssh_clients[-1]
+    assert ssh.closed and ssh.transport is not None and not ssh.transport.active

@@ -14,6 +14,10 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
 
     Provides a simplified interface for connecting to NetworkHD devices via RS232,
     with automatic message dispatching and notification handling.
+
+    A serial link has no keepalive: a failed write marks the connection as lost (is_connected() returns False and
+    the next command raises ConnectionLostError), but a cable that is pulled silently shows up only as commands
+    timing out.
     """
 
     # ============================================================================
@@ -123,7 +127,12 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
 
         # The PDF's command delimiter is CR LF
         self.serial.write((command + "\r\n").encode(), lambda error: loop.call_soon_threadsafe(settle, error))
-        await asyncio.wait_for(written, timeout=self.timeout)
+        try:
+            await asyncio.wait_for(written, timeout=self.timeout)
+        except Exception as e:
+            # The port can stay "open" after the adapter is gone, so a failed write is the only sign of link loss
+            self._mark_connection_lost(f"write failed: {e!r}")
+            raise
 
     async def _read_available(self) -> bytes:
         data = bytes(self._received)

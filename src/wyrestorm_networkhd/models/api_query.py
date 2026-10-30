@@ -3,6 +3,7 @@
 import json
 import logging
 import types
+from collections.abc import Callable
 from dataclasses import dataclass, fields
 from typing import Any, Literal, TypeVar, cast, get_args, get_origin
 
@@ -128,6 +129,30 @@ def _load_device_entries(response: str, key: str) -> list[dict[str, Any]]:
     for entry in errors:
         _LOGGER.debug("Skipping device %s: %s", entry.get("name", "unknown"), entry.get("error"))
     return [entry for entry in entries if "error" not in entry]
+
+
+def _build_devices(entries: list[dict[str, Any]], build: Callable[[dict[str, Any]], D]) -> list[D]:
+    """Build one object per device entry; in a list of several devices, skip (and log) entries that don't parse
+
+    Args:
+        entries: The device JSON objects from _load_device_entries
+        build: Builds one object from one device's JSON object
+
+    Returns:
+        list[D]: The objects built
+
+    Raises:
+        ResponseError: If the only entry doesn't parse
+    """
+    devices = []
+    for entry in entries:
+        try:
+            devices.append(build(entry))
+        except ResponseError as e:
+            if len(entries) == 1:
+                raise
+            _LOGGER.warning("Skipping device %s: %s", entry.get("name", "unknown"), e)
+    return devices
 
 
 def _skip_to_header(response: str, header: str) -> list[str]:
@@ -560,6 +585,8 @@ class DeviceJsonString:
             data = json.loads(response[json_start:])
         except json.JSONDecodeError as e:
             raise ResponseError(f"Invalid JSON in response: {e}") from e
+        if not isinstance(data, list) or not all(isinstance(device_data, dict) for device_data in data):
+            raise ResponseError(f"Expected a JSON list of device objects in response: {response}")
 
         devices = []
         for device_data in data:
@@ -684,7 +711,8 @@ class DeviceInfo:
 
         Returns:
             list[DeviceInfo]: List of parsed device information objects. In a response for several devices, entries the
-                controller reports as errors (for example a device that can't be queried) are skipped.
+                controller reports as errors (for example a device that can't be queried), and entries with values that
+                can't be converted (logged), are skipped.
 
         Raises:
             ResponseError: If the response isn't valid device JSON
@@ -722,44 +750,45 @@ class DeviceInfo:
                 }
                 ```
         """
-        devices = []
-        for device_data in _load_device_entries(response, "devices"):
-            converted_data = _coerce_fields(cls, device_data)
+        return _build_devices(_load_device_entries(response, "devices"), cls._parse_device)
 
-            audio = device_data.get("audio")
-            if isinstance(audio, list):
-                converted_data["audio"] = [
-                    DeviceInfoAudioOutput(mute=audio_item.get("mute", False), name=audio_item.get("name", ""))
-                    for audio_item in audio
-                ]
+    @classmethod
+    def _parse_device(cls, device_data: dict[str, Any]) -> "DeviceInfo":
+        """Build one DeviceInfo from one device's JSON object"""
+        converted_data = _coerce_fields(cls, device_data)
 
-            sinkpower = device_data.get("sinkpower")
-            if isinstance(sinkpower, dict):
-                cec_data = sinkpower.get("cec")
-                rs232_data = sinkpower.get("rs232")
+        audio = device_data.get("audio")
+        if isinstance(audio, list):
+            converted_data["audio"] = [
+                DeviceInfoAudioOutput(mute=audio_item.get("mute", False), name=audio_item.get("name", ""))
+                for audio_item in audio
+            ]
 
-                cec_commands = None
-                if cec_data:
-                    cec_commands = DeviceInfoSinkPowerCecCommands(
-                        onetouchplay=cec_data.get("onetouchplay", ""), standby=cec_data.get("standby", "")
-                    )
+        sinkpower = device_data.get("sinkpower")
+        if isinstance(sinkpower, dict):
+            cec_data = sinkpower.get("cec")
+            rs232_data = sinkpower.get("rs232")
 
-                rs232_commands = None
-                if rs232_data:
-                    rs232_commands = DeviceInfoSinkPowerRs232Commands(
-                        mode=rs232_data.get("mode", ""),
-                        onetouchplay=rs232_data.get("onetouchplay", ""),
-                        param=rs232_data.get("param", ""),
-                        standby=rs232_data.get("standby", ""),
-                    )
-
-                converted_data["sinkpower"] = DeviceInfoSinkPower(
-                    mode=sinkpower.get("mode", ""), cec=cec_commands, rs232=rs232_commands
+            cec_commands = None
+            if cec_data:
+                cec_commands = DeviceInfoSinkPowerCecCommands(
+                    onetouchplay=cec_data.get("onetouchplay", ""), standby=cec_data.get("standby", "")
                 )
 
-            devices.append(_build(cls, converted_data))
+            rs232_commands = None
+            if rs232_data:
+                rs232_commands = DeviceInfoSinkPowerRs232Commands(
+                    mode=rs232_data.get("mode", ""),
+                    onetouchplay=rs232_data.get("onetouchplay", ""),
+                    param=rs232_data.get("param", ""),
+                    standby=rs232_data.get("standby", ""),
+                )
 
-        return devices
+            converted_data["sinkpower"] = DeviceInfoSinkPower(
+                mode=sinkpower.get("mode", ""), cec=cec_commands, rs232=rs232_commands
+            )
+
+        return _build(cls, converted_data)
 
 
 @dataclass
@@ -806,7 +835,8 @@ class DeviceStatus:
 
         Returns:
             list[DeviceStatus]: List of parsed device status information objects. In a response for several devices, entries the
-                controller reports as errors (for example a device that can't be queried) are skipped.
+                controller reports as errors (for example a device that can't be queried), and entries with values that
+                can't be converted (logged), are skipped.
 
         Raises:
             ResponseError: If the response isn't valid device JSON
@@ -845,10 +875,10 @@ class DeviceStatus:
                 }
                 ```
         """
-        return [
-            _build(cls, _coerce_fields(cls, device_data))
-            for device_data in _load_device_entries(response, "devices status")
-        ]
+        return _build_devices(
+            _load_device_entries(response, "devices status"),
+            lambda device_data: _build(cls, _coerce_fields(cls, device_data)),
+        )
 
 
 # =============================================================================

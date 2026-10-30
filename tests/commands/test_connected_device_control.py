@@ -1,7 +1,6 @@
-from unittest.mock import AsyncMock, Mock
-
 import pytest
 
+from tests.commands import echoing_client
 from wyrestorm_networkhd.commands.connected_device_control import ConnectedDeviceControlCommands
 
 
@@ -10,8 +9,7 @@ class TestConnectedDeviceControlCommands:
 
     def setup_method(self):
         """Set up mock client for each test."""
-        self.mock_client = Mock()
-        self.mock_client.send_command = AsyncMock()
+        self.mock_client = echoing_client()
         self.commands = ConnectedDeviceControlCommands(self.mock_client)
 
     # =============================================================================

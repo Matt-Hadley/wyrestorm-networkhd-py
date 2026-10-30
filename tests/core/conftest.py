@@ -6,6 +6,7 @@ tests exercise the real connect(), reader task, framing and send_command() code.
 """
 
 import asyncio
+import time
 
 import pytest
 import pytest_asyncio
@@ -25,6 +26,7 @@ class FakeDevice:
         self.replies: dict[str, list[tuple[float, str]]] = {}
         self.connect_errors: list[Exception] = []
         self.connect_attempts = 0
+        self.connect_delay = 0.0  # seconds the (threaded) SSH connect blocks for
         self.ssh_clients: list[FakeSSHClient] = []
         self.serial_ports: list[FakeSerialPort] = []
 
@@ -45,8 +47,9 @@ class FakeDevice:
 class FakeShell:
     """paramiko.Channel stand-in. Deliberately has no send(), so only sendall() works."""
 
-    def __init__(self, device: FakeDevice) -> None:
+    def __init__(self, device: FakeDevice, loop: asyncio.AbstractEventLoop) -> None:
         self.device = device
+        self.loop = loop
         self.rx = bytearray()
         self.sent: list[bytes] = []
         self.closed = False
@@ -65,10 +68,10 @@ class FakeShell:
         return chunk
 
     def sendall(self, data: bytes) -> None:
+        """Called in a worker thread, like the blocking paramiko call."""
         self.sent.append(data)
-        loop = asyncio.get_running_loop()
         for delay, text in self.device.scheduled_replies(data):
-            loop.call_later(delay, self.feed, text)
+            self.loop.call_soon_threadsafe(self.loop.call_later, delay, self.feed, text)
 
     def settimeout(self, timeout: float) -> None:
         self.timeout = timeout
@@ -97,12 +100,15 @@ class FakeSSHClient:
         self.transport: FakeTransport | None = None
         self.shell: FakeShell | None = None
         self.closed = False
+        # Created on the event loop thread; connect() and invoke_shell() then run in worker threads
+        self.loop = asyncio.get_running_loop()
         device.ssh_clients.append(self)
 
     def set_missing_host_key_policy(self, _policy: object) -> None:
         pass
 
     def connect(self, **_kwargs: object) -> None:
+        time.sleep(self.device.connect_delay)
         self.device.connect_attempts += 1
         if self.device.connect_errors:
             raise self.device.connect_errors.pop(0)
@@ -112,7 +118,7 @@ class FakeSSHClient:
         return self.transport
 
     def invoke_shell(self) -> FakeShell:
-        self.shell = FakeShell(self.device)
+        self.shell = FakeShell(self.device, self.loop)
         return self.shell
 
     def close(self) -> None:

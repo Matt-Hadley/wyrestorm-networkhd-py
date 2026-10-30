@@ -123,6 +123,21 @@ class TestRealControllerReplies:
         # Assert
         assert [(a.tx, a.rx) for a in result.assignments] == [("Source2", "Display1"), ("Source2", "Display2")]
 
+    @pytest.mark.asyncio
+    async def test_name_single_device(self):
+        """config_get_name(host) drops the echo; 3.0.0 returned the echo as part of the hostname."""
+        # Arrange
+        client = Mock()
+        client.send_command = AsyncMock(
+            return_value="config get name NHD-400-RX-000000000001\nNHD-400-RX-000000000001's alias is Display1"
+        )
+
+        # Act
+        result = await APIQueryCommands(client).config_get_name("NHD-400-RX-000000000001")
+
+        # Assert
+        assert result == EndpointAliasHostname(alias="Display1", hostname="NHD-400-RX-000000000001")
+
     def test_name(self):
         # Act
         result = EndpointAliasHostname.parse_multiple(REAL_REPLIES["config get name"])

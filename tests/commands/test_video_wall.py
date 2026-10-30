@@ -1,7 +1,6 @@
-from unittest.mock import AsyncMock, Mock
-
 import pytest
 
+from tests.commands import echoing_client
 from wyrestorm_networkhd.commands.video_wall import VideoWallCommands
 from wyrestorm_networkhd.exceptions import CommandError
 
@@ -11,8 +10,7 @@ class TestVideoWallCommands:
 
     def setup_method(self):
         """Set up mock client for each test."""
-        self.mock_client = Mock()
-        self.mock_client.send_command = AsyncMock()
+        self.mock_client = echoing_client()
         self.commands = VideoWallCommands(self.mock_client)
 
     # =============================================================================

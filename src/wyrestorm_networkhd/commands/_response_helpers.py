@@ -5,14 +5,28 @@ from NetworkHD API commands. These utilities ensure consistent error handling
 and response validation across all command implementations.
 """
 
-import json
-from typing import Any
-
 from ..exceptions import CommandError, ResponseError
 
 
+def strip_echo(response: str, command: str) -> str:
+    """Drop the line echoing the command from the start of a response
+
+    Args:
+        response: The raw response string from the device
+        command: The command that was sent
+
+    Returns:
+        str: The response after the echo line, or the response unchanged if it does not start with the echo
+
+    Notes:
+        Real controllers echo every command as the first line of their reply; parsers expect the reply without it.
+    """
+    first_line, _, rest = response.strip().partition("\n")
+    return rest if first_line.strip() == command.strip() else response
+
+
 def require_command_mirror(response: str, expected: str) -> bool:
-    """Validate that the response echoed the command
+    """Validate that the response mirrored the command
 
     Args:
         response: The raw response string from the device
@@ -25,15 +39,12 @@ def require_command_mirror(response: str, expected: str) -> bool:
         ResponseError: If response does not match expected echo
 
     Notes:
-        Succeeds if the entire response equals the expected echo OR the first
-        non-empty line equals the expected echo.
+        Succeeds if the response is exactly the expected echo, optionally followed by one identical mirror line.
+        Anything else (such as an error message after the echo) fails.
     """
-    stripped = response.strip()
     expected_stripped = expected.strip()
-    if stripped == expected_stripped:
-        return True
-    first_line = stripped.splitlines()[0] if stripped else ""
-    if first_line.strip() == expected_stripped:
+    lines = [line.strip() for line in response.strip().splitlines()]
+    if lines in ([expected_stripped], [expected_stripped, expected_stripped]):
         return True
     raise ResponseError(f"Unexpected response. Expected echo of: '{expected}', got: '{response}'")
 
@@ -87,31 +98,3 @@ def require_success_indicator(response: str, expected_start: str | None = None) 
     if "success" in lower:
         return True
     raise ResponseError(f"Response missing success/failure indicator: '{response}'")
-
-
-def parse_json_response(response: str, prefix: str) -> dict[str, Any]:
-    """Helper function for parsing JSON responses from API commands
-
-    Args:
-        response: The raw response string from the device
-        prefix: The expected prefix before the JSON data (e.g., "device json string:")
-
-    Returns:
-        dict[str, Any]: The parsed JSON data as a dictionary
-
-    Raises:
-        ResponseError: If the response format is invalid or contains invalid JSON
-
-    Notes:
-        Extracts JSON data that appears after the specified prefix in the response.
-        Handles both valid JSON parsing and format validation.
-    """
-    if prefix not in response:
-        raise ResponseError(f"Invalid response format, expected '{prefix}': {response}")
-
-    json_part = response.split(prefix)[1].strip()
-    try:
-        parsed_data: dict[str, Any] = json.loads(json_part)
-        return parsed_data
-    except json.JSONDecodeError as e:
-        raise ResponseError(f"Invalid JSON in response: {e}") from e

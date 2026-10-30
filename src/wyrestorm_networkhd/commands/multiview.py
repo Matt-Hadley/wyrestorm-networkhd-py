@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Literal
 
-from ._response_helpers import require_command_mirror, require_success_indicator
+from ._response_helpers import require_command_mirror, require_success_indicator, strip_echo
 
 if TYPE_CHECKING:
     from ..core._client import _BaseNetworkHDClient
@@ -58,7 +58,7 @@ class MultiviewCommands:
         """
         command = f"mview set {rx} {mode} {tx}" if mode else f"mview set {rx} {tx}"
         response = await self.client.send_command(command)
-        return require_success_indicator(response)
+        return require_success_indicator(strip_echo(response, command))
 
     # =============================================================
     # 11.2 Multiview Decoders – Preset Tile Layouts
@@ -105,7 +105,7 @@ class MultiviewCommands:
         """
         command = f"mscene active {rx} {lname}"
         response = await self.client.send_command(command)
-        return require_success_indicator(response, expected_start=f"mscene active {rx} {lname}")
+        return require_success_indicator(strip_echo(response, command), expected_start=f"mscene active {rx} {lname}")
 
     async def mscene_change(self, rx: str, lname: str, tile: int, tx: str) -> bool:
         """Change the TX for a tile within a preset Multiview layout
@@ -149,7 +149,9 @@ class MultiviewCommands:
         """
         command = f"mscene change {rx} {lname} {tile} {tx}"
         response = await self.client.send_command(command)
-        return require_success_indicator(response, expected_start=f"mscene change {rx} {lname} {tile} {tx}")
+        return require_success_indicator(
+            strip_echo(response, command), expected_start=f"mscene change {rx} {lname} {tile} {tx}"
+        )
 
     async def mscene_set_audio(
         self, rx: str, lname: str, audio_mode: Literal["window", "separate"], target: str | int
@@ -215,7 +217,7 @@ class MultiviewCommands:
         command = f"mscene set audio {rx} {lname} {audio_mode} {target}"
         response = await self.client.send_command(command)
         return require_success_indicator(
-            response, expected_start=f"mscene set audio {rx} {lname} {audio_mode} {target}"
+            strip_echo(response, command), expected_start=f"mscene set audio {rx} {lname} {audio_mode} {target}"
         )
 
     async def config_set_device_info_audio_src(
@@ -385,7 +387,7 @@ class MultiviewCommands:
         tile_config = " ".join(tile_strings)
         command = f"mview set {rx} {mode} {tile_config}"
         response = await self.client.send_command(command)
-        return require_success_indicator(response)
+        return require_success_indicator(strip_echo(response, command))
 
     async def mview_set_audio_custom(self, rx: str, tx: str) -> bool:
         """Change the audio source within a custom Multiview layout
@@ -424,7 +426,7 @@ class MultiviewCommands:
         command = f"mview set audio {rx} separate {tx}"
         response = await self.client.send_command(command)
         expected_start = f"mview set audio {rx} separate {tx}"
-        return require_success_indicator(response, expected_start)
+        return require_success_indicator(strip_echo(response, command), expected_start)
 
     # =============================================================
     # 11.4 Multiview Decoders – PiP position
@@ -467,4 +469,4 @@ class MultiviewCommands:
         command = f"mscene set pipposition {rx} 2-2 {position}"
         response = await self.client.send_command(command)
         expected_start = f"mscene set pipposition {rx} 2-2 {position}"
-        return require_success_indicator(response, expected_start)
+        return require_success_indicator(strip_echo(response, command), expected_start)

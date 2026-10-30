@@ -2,6 +2,7 @@
 
 import asyncio
 import builtins
+import threading
 
 import pytest
 
@@ -130,3 +131,40 @@ async def test_concurrent_commands_are_serialised(ssh_client, device):
 async def test_send_when_not_connected_raises():
     with pytest.raises(ConnectionError, match="Not connected"):
         await make_ssh_client().send_command("cmd")
+
+
+async def test_reply_still_streaming_at_deadline_raises_timeout(ssh_client, device):
+    """Regression: a reply still arriving at response_timeout was returned truncated."""
+    device.reply("cmd", "cmd\r\n", *[f"line {i}\r\n" for i in range(10)], delay=0.03)
+
+    with pytest.raises(TimeoutError):
+        await ssh_client.send_command("cmd", response_timeout=0.1, response_line_timeout=0.05)
+
+
+async def test_idle_gap_ending_after_deadline_still_returns(ssh_client, device):
+    device.reply("cmd", "cmd\r\nok\r\n", delay=0.08)
+
+    assert await ssh_client.send_command("cmd", response_timeout=0.1, response_line_timeout=0.05) == "cmd\nok"
+
+
+async def test_reply_bytes_split_inside_a_character(ssh_client, device):
+    """Regression: per-chunk decoding dropped multi-byte characters split across reads."""
+    device.reply("cmd", "cmd\r\ncaf")
+    task = asyncio.create_task(ssh_client.send_command("cmd", **FAST))
+    await asyncio.sleep(0.02)
+    device.shell.rx += b"\xc3"
+    await asyncio.sleep(0.02)
+    device.shell.rx += b"\xa9\r\n"
+
+    assert await task == "cmd\ncafé"
+
+
+async def test_sendall_runs_in_a_worker_thread(ssh_client, device):
+    threads = []
+    sendall = device.shell.sendall
+    device.shell.sendall = lambda data: (threads.append(threading.get_ident()), sendall(data))
+    device.reply("cmd", "cmd\r\nok\r\n")
+
+    await ssh_client.send_command("cmd", **FAST)
+
+    assert threads and threads[0] != threading.get_ident()

@@ -1,8 +1,8 @@
-from unittest.mock import AsyncMock, Mock
-
 import pytest
 
+from tests.commands import echoing_client
 from wyrestorm_networkhd.commands.device_port_switch import DevicePortSwitchCommands
+from wyrestorm_networkhd.exceptions import ResponseError
 
 
 class TestDevicePortSwitchCommands:
@@ -10,8 +10,7 @@ class TestDevicePortSwitchCommands:
 
     def setup_method(self):
         """Set up mock client for each test."""
-        self.mock_client = Mock()
-        self.mock_client.send_command = AsyncMock()
+        self.mock_client = echoing_client()
         self.commands = DevicePortSwitchCommands(self.mock_client)
 
     # =============================================================================
@@ -406,7 +405,7 @@ class TestDevicePortSwitchCommands:
 
     @pytest.mark.asyncio
     async def test_set_device_audio2source_with_multiline_response(self):
-        """Test setting device audio2 source with multiline response."""
+        """Test setting device audio2 source with multiline response is rejected."""
         # Arrange
         rx = "RX1"
         stream = "dmix"
@@ -414,12 +413,11 @@ class TestDevicePortSwitchCommands:
         expected_response = "config set device audio2source RX1 dmix\nAudio2 source configured successfully"
         self.mock_client.send_command.return_value = expected_response
 
-        # Act
-        result = await self.commands.config_set_device_audio2source(rx, stream)
+        # Act / Assert: anything after the mirror means the device did not just accept the command
+        with pytest.raises(ResponseError):
+            await self.commands.config_set_device_audio2source(rx, stream)
 
-        # Assert
         self.mock_client.send_command.assert_called_once_with(expected_command)
-        assert result is True
 
     @pytest.mark.asyncio
     async def test_set_device_audio_input_type_with_hostname_device(self):
@@ -440,7 +438,7 @@ class TestDevicePortSwitchCommands:
 
     @pytest.mark.asyncio
     async def test_set_device_info_dante_audio_input_with_additional_response_text(self):
-        """Test setting Dante audio input with additional response text."""
+        """Test setting Dante audio input with additional response text is rejected."""
         # Arrange
         source = "hdmi"
         tx = "TX1"
@@ -448,12 +446,11 @@ class TestDevicePortSwitchCommands:
         expected_response = "config set device info dante.audio_input=hdmi TX1\nDante configuration updated"
         self.mock_client.send_command.return_value = expected_response
 
-        # Act
-        result = await self.commands.config_set_device_info_dante_audio_input(source, tx)
+        # Act / Assert: anything after the mirror means the device did not just accept the command
+        with pytest.raises(ResponseError):
+            await self.commands.config_set_device_info_dante_audio_input(source, tx)
 
-        # Assert
         self.mock_client.send_command.assert_called_once_with(expected_command)
-        assert result is True
 
     @pytest.mark.asyncio
     async def test_set_device_info_km_over_ip_enable_with_case_sensitivity(self):

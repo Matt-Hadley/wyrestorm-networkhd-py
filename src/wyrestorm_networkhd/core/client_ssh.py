@@ -1,6 +1,9 @@
 """SSH client for NetworkHD devices with simplified architecture."""
 
 import asyncio
+import contextlib
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 import paramiko
 
@@ -9,6 +12,20 @@ from ._client import _BaseNetworkHDClient
 
 # Seconds between SSH keepalive packets, so a dead link is noticed and NAT/firewall state is kept
 _KEEPALIVE_INTERVAL = 30
+
+_T = TypeVar("_T")
+
+
+async def _in_thread(func: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
+    """Run a blocking call in a thread; if cancelled, wait for it to finish so its result can still be closed."""
+    future = asyncio.ensure_future(asyncio.to_thread(func, *args, **kwargs))
+    try:
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
+        with contextlib.suppress(Exception):
+            await future
+        raise
+
 
 # Type alias for SSH host key policies
 HostKeyPolicy = str  # 'auto_add', 'reject', or 'warn'
@@ -109,7 +126,7 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(self._get_host_key_policy())
         try:
-            await asyncio.to_thread(
+            await _in_thread(
                 self.client.connect,
                 hostname=self.host,
                 port=self.port,
@@ -127,7 +144,7 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
         transport = self.client.get_transport()
         if transport is not None:
             transport.set_keepalive(_KEEPALIVE_INTERVAL)
-        shell = await asyncio.to_thread(self.client.invoke_shell)
+        shell = await _in_thread(self.client.invoke_shell)
         shell.settimeout(self.timeout)
         self.shell = shell
 
@@ -150,7 +167,7 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
     async def _write(self, command: str) -> None:
         if self.shell is None:
             raise ConnectionError("SSH shell not available")
-        self.shell.sendall((command + "\n").encode())
+        await asyncio.to_thread(self.shell.sendall, (command + "\n").encode())
 
     async def _read_available(self) -> bytes:
         if self.shell is None:

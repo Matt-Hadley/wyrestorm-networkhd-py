@@ -1896,6 +1896,14 @@ class TestJsonModelFieldConversion:
             case.model.parse(response)
 
 
+class TestDeviceJsonStringShape:
+    @pytest.mark.parametrize("data", ['["SOURCE1"]', '[{"aliasName": "SOURCE1"}, 2]'])
+    def test_list_of_non_objects_raises_response_error(self, data):
+        """Regression: raised AttributeError instead of ResponseError."""
+        with pytest.raises(ResponseError, match="list of device objects"):
+            DeviceJsonString.parse(f"device json string:{data}")
+
+
 class TestDeviceListErrorEntries:
     """Error entries ({"name": ..., "error": ...}) in 'config get device info/status' lists."""
 
@@ -1909,6 +1917,28 @@ class TestDeviceListErrorEntries:
             f'{header}:\n{{"{key}": ['
             '{"aliasname": "DISPLAY1", "name": "NHD-210-RX-E4CE02107132"},'
             '{"aliasname": "", "error": "no such device", "name": "SOURCE9"}]}'
+        )
+
+        # Act
+        result = model.parse(response)
+
+        # Assert
+        assert [device.name for device in result] == ["NHD-210-RX-E4CE02107132"]
+
+    @pytest.mark.parametrize(
+        "model, header, key, bad_field",
+        [
+            (DeviceInfo, "devices json info", "devices", "temperature"),
+            (DeviceStatus, "devices status info", "devices status", "hdmi out frame rate"),
+        ],
+    )
+    def test_unconvertible_entry_in_list_is_skipped(self, model, header, key, bad_field):
+        """Regression: one bad value in one device failed the whole list."""
+        # Arrange
+        response = (
+            f'{header}:\n{{"{key}": ['
+            '{"aliasname": "DISPLAY1", "name": "NHD-210-RX-E4CE02107132"},'
+            f'{{"aliasname": "DISPLAY2", "name": "NHD-210-RX-E4CE02107133", "{bad_field}": "sixty"}}]}}'
         )
 
         # Act

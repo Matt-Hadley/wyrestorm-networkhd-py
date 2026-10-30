@@ -1,8 +1,8 @@
-from unittest.mock import AsyncMock, Mock
-
 import pytest
 
+from tests.commands import echoing_client
 from wyrestorm_networkhd.commands.api_endpoint import APIEndpointCommands
+from wyrestorm_networkhd.exceptions import ResponseError
 
 
 class TestAPIEndpointCommands:
@@ -10,8 +10,7 @@ class TestAPIEndpointCommands:
 
     def setup_method(self):
         """Set up mock client for each test."""
-        self.mock_client = Mock()
-        self.mock_client.send_command = AsyncMock()
+        self.mock_client = echoing_client()
         self.commands = APIEndpointCommands(self.mock_client)
 
     # =============================================================================
@@ -52,19 +51,18 @@ class TestAPIEndpointCommands:
 
     @pytest.mark.asyncio
     async def test_set_session_alias_with_multiline_response(self):
-        """Test setting session alias mode with multiline response."""
+        """Test setting session alias mode with multiline response is rejected."""
         # Arrange
         mode = "on"
         expected_command = "config set session alias on"
         expected_response = "config set session alias on\nAdditional output line"
         self.mock_client.send_command.return_value = expected_response
 
-        # Act
-        result = await self.commands.config_set_session_alias(mode)
+        # Act / Assert: anything after the mirror means the device did not just accept the command
+        with pytest.raises(ResponseError):
+            await self.commands.config_set_session_alias(mode)
 
-        # Assert
         self.mock_client.send_command.assert_called_once_with(expected_command)
-        assert result is True
 
     @pytest.mark.asyncio
     async def test_set_session_alias_with_whitespace_response(self):
