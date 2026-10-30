@@ -53,3 +53,22 @@ def test_setup_logging_leaves_root_handlers_alone():
         root.removeHandler(sentinel)
         package_logger.setLevel(saved[0])
         package_logger.handlers[:] = saved[1]
+
+
+def test_setup_logging_writes_to_log_file(tmp_path):
+    package_logger = logging.getLogger("wyrestorm_networkhd")
+    saved = (package_logger.level, list(package_logger.handlers))
+    log_file = tmp_path / "logs" / "networkhd.log"
+    try:
+        setup_logging(level="INFO", log_file=log_file)
+        logging.getLogger("wyrestorm_networkhd.test").info("hello file")
+        for handler in package_logger.handlers:
+            handler.flush()
+
+        assert "hello file" in log_file.read_text()
+    finally:
+        for handler in package_logger.handlers:
+            if handler not in saved[1]:
+                handler.close()
+        package_logger.setLevel(saved[0])
+        package_logger.handlers[:] = saved[1]

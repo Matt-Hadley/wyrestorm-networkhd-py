@@ -148,8 +148,8 @@ client.register_notification_callback("serialinfo", on_serial)
 - Unknown JSON fields in device replies are ignored instead of failing the parse.
 - Real JSON booleans and empty values are accepted.
 - `config_get_device_info()` and `config_get_device_status()` without a device skip per-device error entries (for
-  example an offline endpoint) and return the rest. Querying a single device that returns an error still raises
-  `DeviceQueryError`.
+  example an offline endpoint) and entries that can't be parsed, and return the rest, even when the controller has only
+  one endpoint. Querying a named device that returns an error still raises `DeviceQueryError`.
 
 ## RS232 client
 

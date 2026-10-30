@@ -87,6 +87,22 @@ async def test_serialinfo_is_assembled_by_length(ssh_client, device):
     assert received[0].serial_data == data
 
 
+async def test_hex_serialinfo_with_overstated_length_does_not_swallow_the_reply(ssh_client, device, caplog):
+    caplog.set_level(logging.DEBUG)
+    device.shell.feed("notify serialinfo display1 hex 500:\r\n41 42\r\n")
+    await settle()
+    device.reply("cmd", "cmd\r\nok\r\n")
+
+    assert await ssh_client.send_command("cmd", response_timeout=0.5, response_line_timeout=0.05) == "cmd\nok"
+    assert ssh_client._pending_serialinfo is None
+    assert "data isn't hex" in caplog.text
+
+
+async def test_unknown_notification_type_is_rejected(ssh_client):
+    with pytest.raises(ValueError, match="Unknown notification type 'endpoints'"):
+        ssh_client.register_notification_callback("endpoints", print)
+
+
 async def test_irinfo_spanning_lines_is_assembled(ssh_client, device):
     received = []
     ssh_client.register_notification_callback("irinfo", received.append)
@@ -157,6 +173,20 @@ async def test_serialinfo_data_followed_directly_by_notifications(ssh_client, de
 
     assert [n.serial_data for n in serial] == ["41 42"]
     assert [n.device for n in endpoint] == ["source1", "source2"]
+
+
+async def test_hex_serialinfo_split_across_reads(ssh_client, device):
+    """Valid hex data arriving over several reads is framed, not abandoned on the partial window."""
+    serial, endpoint = [], []
+    ssh_client.register_notification_callback("serialinfo", serial.append)
+    ssh_client.register_notification_callback("endpoint", endpoint.append)
+    device.shell.feed("notify serialinfo display1 hex 5:\r\n41")
+    await settle()
+    device.shell.feed(" 42notify endpoint + source1\r\n")
+    await settle()
+
+    assert [n.serial_data for n in serial] == ["41 42"]
+    assert [n.device for n in endpoint] == ["source1"]
 
 
 @pytest.mark.parametrize("length", ["65537", "1" * 200])

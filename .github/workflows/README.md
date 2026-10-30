@@ -23,10 +23,11 @@ GitHub Actions workflows for a Python package.
 **Main Branch:**
 
 - Automated release creation via [release-please](https://github.com/googleapis/release-please-action)
-- Complete health check validation
+- Complete health check on every supported Python version
 - Coverage badge updates
-- Package building and PyPI deployment via trusted publisher
+- Package building (sdist and wheel) and PyPI deployment via trusted publisher
 - GitHub release with distribution files (.whl)
+- Least-privilege permissions per job; third-party actions are pinned to commit SHAs (Dependabot updates them)
 
 **_How Release-Please Works:_**
 
@@ -48,9 +49,6 @@ GitHub Actions workflows for a Python package.
 # Coverage badge (for gist updates)
 GIST_SECRET=your_github_personal_access_token_with_gist_scope
 GIST_ID=your_coverage_badge_gist_id
-
-# Release-please (if using custom token)
-MY_RELEASE_PLEASE_TOKEN=your_github_token_with_repo_scope
 ```
 
 **Note:** PyPI authentication uses trusted publisher (no API token needed).

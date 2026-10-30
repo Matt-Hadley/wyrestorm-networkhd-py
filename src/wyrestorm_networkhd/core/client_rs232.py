@@ -46,7 +46,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
             message_dispatcher_interval: Sleep interval in seconds for the message
                 dispatcher loop when nothing is readable (default: 0.05).
             **serial_kwargs: Additional ``async_pyserial.SerialPortOptions`` attributes
-                (bytesize, stopbits, parity, read_timeout, write_timeout).
+                (bytesize, stopbits, parity, read_timeout, write_timeout, read_bufsize).
 
         Raises:
             ValueError: If any parameters are invalid.

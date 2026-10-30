@@ -67,10 +67,10 @@ make dev-workflow
 make format           # Format code with Ruff and Prettier
 make lint            # Run linting checks
 make test            # Run all tests
-make test-fast       # Run all tests except integration and performance
+make test-fast       # Run all tests without coverage reports
 make test-cov        # Run tests with coverage report
 make check           # Run all quality checks
-make build           # Build and validate package
+make build           # Build and validate sdist and wheel
 
 # Comprehensive validation (before commits/releases)
 make health-check    # Full project validation
@@ -78,25 +78,6 @@ make pre-commit      # Run pre-commit hooks
 
 # See all available commands
 make help
-```
-
-### Test Categories
-
-Tests are organized into categories using pytest markers:
-
-```bash
-# Everything except integration and performance tests (what dev-workflow runs)
-make test-fast
-# or: pytest -m "not integration and not performance"
-
-# Integration tests (mocked clients, no hardware needed)
-pytest -m "integration"
-
-# Performance tests (slow, benchmark-focused)
-pytest -m "performance"
-
-# All tests
-make test
 ```
 
 ### Code Quality Standards
@@ -119,19 +100,23 @@ make test
 ### Docstring Example
 
 ````python
-async def send_command(self, command: str, timeout: float = 10.0) -> str:
+async def send_command(
+    self, command: str, response_timeout: float = 10.0, response_line_timeout: float = 0.3
+) -> str:
     """Send a command to the NetworkHD device.
 
     Args:
         command: The command string to send to the device.
-        timeout: Maximum time to wait for response in seconds.
+        response_timeout: Maximum time to wait for the response in seconds.
+        response_line_timeout: Idle gap in seconds after a line that ends the response.
 
     Returns:
         The response string from the device.
 
     Raises:
         ConnectionError: If not connected to the device.
-        CommandError: If the command fails or times out.
+        CommandError: If the command contains a line break or the device answers ERROR.
+        TimeoutError: If the response has not ended within response_timeout.
 
     Example:
         ```python
@@ -341,11 +326,10 @@ commands when testing against a live system.
 
 **DO NOT** create public issues for security vulnerabilities.
 
-Instead, please email: 81762940+Matt-Hadley@users.noreply.github.com
-
-- Subject: `[SECURITY] WyreStorm NetworkHD - [Brief Description]`
-- Include detailed reproduction steps
-- Provide suggested fixes if possible
+Instead, report them through
+[GitHub private vulnerability reporting](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/security/advisories/new)
+with reproduction steps and, if you have one, a suggested fix. See the
+[security policy](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/security/policy).
 
 ## 📚 Documentation
 

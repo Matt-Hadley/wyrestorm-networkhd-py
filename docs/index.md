@@ -147,8 +147,8 @@ serial port. Extra keyword arguments are passed to async-pyserial's `SerialPortO
 
 `send_command()`, which every `NHDAPI` method uses, takes two timeouts:
 
-- `response_timeout` (default 10 s): how long to wait for the reply to start. If nothing arrives, it raises
-  `TimeoutError`.
+- `response_timeout` (default 10 s): the most the whole reply may take. If nothing arrives, or lines are still arriving
+  when it expires, it raises `TimeoutError` rather than returning a truncated reply.
 - `response_line_timeout` (default 0.3 s): the reply ends when no further line arrives for this long. Raise it for slow,
   multi-line replies.
 
@@ -301,8 +301,9 @@ Register callbacks with `client.register_notification_callback(type, callback)`,
 are `"endpoint"`, `"cecinfo"`, `"irinfo"`, `"serialinfo"`, `"video"` and `"sink"`; each callback receives the parsed
 notification model (see [Models](reference/models.md)). Coroutine callbacks are scheduled as tasks. Exceptions raised by
 callbacks are logged and don't affect the connection. Multi-line `serialinfo` and `irinfo` notifications are assembled
-before your callback sees them. A `serialinfo` whose length is over 65536 or doesn't match its data, and any line or
-`irinfo` over 64 KiB, is dropped with a warning in the log.
+before your callback sees them. A `serialinfo` is framed by its stated length, which is trusted: a length over 65536 is
+dropped with a warning, and `hex` data containing anything but hex digits and whitespace stops the framing so the
+following lines are read normally. Any line or `irinfo` over 64 KiB is dropped with a warning in the log.
 
 CEC notifications from NHD-400/500 endpoints can be switched on or off:
 

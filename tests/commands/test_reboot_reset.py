@@ -56,7 +56,7 @@ class TestRebootResetCommands:
         result = await self.commands.set_device_reboot(device)
 
         # Assert
-        self.mock_client.send_command.assert_called_once_with("config set device reboot TX1", response_timeout=10.0)
+        self.mock_client.send_command.assert_called_once_with("config set device reboot TX1")
         assert result is True
 
     @pytest.mark.asyncio
@@ -71,7 +71,7 @@ class TestRebootResetCommands:
         result = await self.commands.set_device_reboot(devices)
 
         # Assert
-        self.mock_client.send_command.assert_called_once_with("config set device reboot RX2", response_timeout=10.0)
+        self.mock_client.send_command.assert_called_once_with("config set device reboot RX2")
         assert result is True
 
     @pytest.mark.asyncio
@@ -86,9 +86,7 @@ class TestRebootResetCommands:
         result = await self.commands.set_device_reboot(devices)
 
         # Assert
-        self.mock_client.send_command.assert_called_once_with(
-            "config set device reboot TX1 RX1 TX2", response_timeout=10.0
-        )
+        self.mock_client.send_command.assert_called_once_with("config set device reboot TX1 RX1 TX2")
         assert result is True
 
     @pytest.mark.asyncio
@@ -103,9 +101,7 @@ class TestRebootResetCommands:
         result = await self.commands.set_device_reboot(devices)
 
         # Assert
-        self.mock_client.send_command.assert_called_once_with(
-            "config set device reboot TX-Main RX-Display", response_timeout=10.0
-        )
+        self.mock_client.send_command.assert_called_once_with("config set device reboot TX-Main RX-Display")
         assert result is True
 
     # =============================================================================
@@ -124,9 +120,7 @@ class TestRebootResetCommands:
         result = await self.commands.config_set_device_restorefactory(device)
 
         # Assert
-        self.mock_client.send_command.assert_called_once_with(
-            "config set device restorefactory TX1", response_timeout=10.0
-        )
+        self.mock_client.send_command.assert_called_once_with("config set device restorefactory TX1")
         assert result is True
 
     @pytest.mark.asyncio
@@ -141,9 +135,7 @@ class TestRebootResetCommands:
         result = await self.commands.config_set_device_restorefactory(devices)
 
         # Assert
-        self.mock_client.send_command.assert_called_once_with(
-            "config set device restorefactory RX2", response_timeout=10.0
-        )
+        self.mock_client.send_command.assert_called_once_with("config set device restorefactory RX2")
         assert result is True
 
     @pytest.mark.asyncio
@@ -158,9 +150,7 @@ class TestRebootResetCommands:
         result = await self.commands.config_set_device_restorefactory(devices)
 
         # Assert
-        self.mock_client.send_command.assert_called_once_with(
-            "config set device restorefactory TX1 RX1 TX2", response_timeout=10.0
-        )
+        self.mock_client.send_command.assert_called_once_with("config set device restorefactory TX1 RX1 TX2")
         assert result is True
 
     @pytest.mark.asyncio
@@ -175,7 +165,5 @@ class TestRebootResetCommands:
         result = await self.commands.config_set_device_restorefactory(devices)
 
         # Assert
-        self.mock_client.send_command.assert_called_once_with(
-            "config set device restorefactory TX-Main RX-Display", response_timeout=10.0
-        )
+        self.mock_client.send_command.assert_called_once_with("config set device restorefactory TX-Main RX-Display")
         assert result is True

@@ -6,13 +6,7 @@ on:
         branches: [main]
 
 permissions:
-    contents: write
-    pull-requests: write
-    issues: write # For labels
-    id-token: write # For attestations
-    attestations: write
-    checks: write
-    pages: write # For GitHub Pages
+    contents: read
 
 concurrency:
     group: release-${{ github.ref }}
@@ -23,11 +17,15 @@ jobs:
         name: Release Please
         runs-on: ubuntu-latest
         timeout-minutes: 10
+        permissions:
+            contents: write
+            pull-requests: write
+            issues: write # For labels
         outputs:
             releases_created: ${{ steps.release.outputs.releases_created }}
             tag_name: ${{ steps.release.outputs.tag_name }}
         steps:
-            - uses: googleapis/release-please-action@v5
+            - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
               id: release
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
@@ -49,7 +47,7 @@ jobs:
                 python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
         steps:
             - name: Checkout code
-              uses: actions/checkout@v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
 
@@ -57,16 +55,6 @@ jobs:
               uses: ./.github/actions/setup-environment
               with:
                   python-version: ${{ matrix.python-version }}
-
-            - name: Cache dependencies
-              uses: actions/cache@v6
-              with:
-                  path: |
-                      ~/.cache/pip
-                  key: ${{ runner.os }}-python-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-                  restore-keys: |
-                      ${{ runner.os }}-python-${{ matrix.python-version }}-
-                      ${{ runner.os }}-python-
 
             - name: Run health check
               run: make health-check
@@ -78,26 +66,22 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         environment: pypi
+        permissions:
+            contents: write # Upload release assets
+            id-token: write # PyPI trusted publishing and attestations
+            attestations: write
         steps:
             - name: Checkout code
-              uses: actions/checkout@v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
 
             - name: Setup environment
               uses: ./.github/actions/setup-environment
 
-            - name: Cache dependencies
-              uses: actions/cache@v6
-              with:
-                  path: |
-                      ~/.cache/pip
-                  key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml') }}
-                  restore-keys: |
-                      ${{ runner.os }}-python-
-
-            - name: Run health check
-              run: make health-check
+            # test-matrix already ran the health check; coverage.xml feeds the badge
+            - name: Test with coverage and build
+              run: make test-cov build
 
             - name: Extract coverage percentage
               id: coverage
@@ -123,7 +107,7 @@ jobs:
 
             - name: Update coverage badge
               continue-on-error: true
-              uses: schneegans/dynamic-badges-action@v1.9.0
+              uses: schneegans/dynamic-badges-action@28b0fa8bdeb46170ac397105ece0c1fe58f68910 # v1.9.0
               with:
                   auth: ${{ secrets.GIST_SECRET }}
                   gistID: ${{ secrets.GIST_ID }}
@@ -136,7 +120,7 @@ jobs:
                   namedLogo: pytest
 
             - name: Upload release assets
-              uses: softprops/action-gh-release@v3
+              uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
               with:
                   tag_name: ${{ needs.release-please.outputs.tag_name }}
                   files: |
@@ -145,12 +129,12 @@ jobs:
 
             - name: Attest build artifacts
               continue-on-error: true
-              uses: actions/attest-build-provenance@v4
+              uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
               with:
                   subject-path: "dist/*.whl"
 
             - name: Publish to PyPI
-              uses: pypa/gh-action-pypi-publish@release/v1
+              uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
               with:
                   packages-dir: dist/
                   attestations: true
@@ -164,24 +148,18 @@ jobs:
         environment:
             name: github-pages
             url: ${{ steps.deployment.outputs.page_url }}
+        permissions:
+            contents: read
+            pages: write
+            id-token: write # For GitHub Pages deployment
         steps:
             - name: Checkout code
-              uses: actions/checkout@v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
 
             - name: Setup environment
               uses: ./.github/actions/setup-environment
-
-            - name: Cache dependencies
-              uses: actions/cache@v6
-              with:
-                  path: |
-                      ~/.cache/pip
-                  key: ${{ runner.os }}-python-docs-${{ hashFiles('pyproject.toml') }}
-                  restore-keys: |
-                      ${{ runner.os }}-python-docs-
-                      ${{ runner.os }}-python-
 
             - name: Install documentation dependencies
               run: |
@@ -189,16 +167,16 @@ jobs:
                   pip install -e ".[docs,rs232]"
 
             - name: Build documentation
-              run: mkdocs build --clean
+              run: mkdocs build --clean --strict
 
             - name: Setup Pages
-              uses: actions/configure-pages@v6
+              uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
             - name: Upload documentation artifacts
-              uses: actions/upload-pages-artifact@v5
+              uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
               with:
                   path: ./site
 
             - name: Deploy to GitHub Pages
               id: deployment
-              uses: actions/deploy-pages@v5
+              uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

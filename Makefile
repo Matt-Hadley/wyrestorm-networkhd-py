@@ -18,7 +18,8 @@ PIP_AUDIT := $(shell if [ -x "$(VENV_BIN)/pip-audit" ]; then echo "$(VENV_BIN)/p
 PYTEST := $(shell if [ -x "$(VENV_BIN)/pytest" ]; then echo "$(VENV_BIN)/pytest"; else echo "pytest"; fi)
 PRE_COMMIT := $(shell if [ -x "$(VENV_BIN)/pre-commit" ]; then echo "$(VENV_BIN)/pre-commit"; else echo "pre-commit"; fi)
 VULTURE := $(shell if [ -x "$(VENV_BIN)/vulture" ]; then echo "$(VENV_BIN)/vulture"; else echo "vulture"; fi)
-PYUPGRADE := $(shell if [ -x "$(VENV_BIN)/pyupgrade" ]; then echo "$(VENV_BIN)/pyupgrade"; else echo "pyupgrade"; fi)
+# Pinned so formatting matches CI; .prettierrc and .prettierignore apply
+PRETTIER := npx -y prettier@3.3.3
 
 # Better Python detection
 PYTHON3 := $(shell command -v python3 2> /dev/null || echo "python3")
@@ -52,15 +53,15 @@ endif
 
 # Phony targets
 .PHONY: help \
-        install install-pkg create-venv install-deps update-deps \
-        test test-fast test-integration test-performance test-cov \
+        install install-pkg create-venv install-deps \
+        test test-fast test-cov \
         format format-check format-code format-docs \
         lint type-check type-check-strict \
         security-check security-audit code-quality check \
         build \
         clean clean-all clean-build clean-pyc clean-test clean-cache clean-docs \
         health-check check-project-structure check-versions show-deps \
-        setup-pre-commit pre-commit validate-config ensure-venv \
+        setup-pre-commit pre-commit validate-config \
         dev-workflow \
         docs docs-serve
 
@@ -80,32 +81,29 @@ help: ## Show this help message
 	@echo "  install-pkg      - Install package in development mode"
 	@echo "  create-venv      - Create/ensure virtual environment"
 	@echo "  install-deps     - Install development dependencies"
-	@echo "  update-deps      - Update all dependencies"
 	@echo "  setup-pre-commit - Install pre-commit hooks"
 	@echo ""
 	@echo "$(YELLOW)🧪 Testing:$(NC)"
 	@echo "  test             - Run all tests"
-	@echo "  test-fast        - Run all tests except integration and performance"
-	@echo "  test-integration - Run integration tests only"
-	@echo "  test-performance - Run performance tests only"
+	@echo "  test-fast        - Run all tests without coverage reports"
 	@echo "  test-cov         - Run all tests with coverage report"
 	@echo ""
 	@echo "$(YELLOW)✨ Code Formatting:$(NC)"
 	@echo "  format           - Format all code and documentation"
-	@echo "  format-code      - Format Python code (pyupgrade + Ruff)"
+	@echo "  format-code      - Format Python code (Ruff)"
 	@echo "  format-docs      - Format documentation (Prettier)"
 	@echo ""
 	@echo "$(YELLOW)🔍 Code Quality:$(NC)"
 	@echo "  check            - Run all quality checks"
 	@echo "  lint             - Run linting checks"
 	@echo "  type-check       - Run type checking (non-blocking)"
-	@echo "  type-check-strict - Run type checking (strict)"
+	@echo "  type-check-strict - Run type checking (fails on errors)"
 	@echo "  code-quality     - Run dead code & typo checks"
 	@echo "  security-check   - Run security checks"
 	@echo "  security-audit   - Generate detailed security report"
 	@echo ""
 	@echo "$(YELLOW)📦 Build & Release:$(NC)"
-	@echo "  build            - Build and validate package"
+	@echo "  build            - Build and validate sdist and wheel"
 	@echo ""
 	@echo "$(YELLOW)🧹 Cleanup:$(NC)"
 	@echo "  clean            - Remove all build artifacts"
@@ -160,9 +158,6 @@ install-deps: create-venv ## Install development dependencies
 	$(Q)$(PIP) install -e ".[dev]"
 	@echo "$(GREEN)✓$(NC) Development dependencies installed"
 
-update-deps: install-deps ## Update all dependencies
-	@echo "$(GREEN)✓$(NC) Dependencies updated"
-
 setup-pre-commit: install-deps ## Install pre-commit hooks
 	$(ECHO) "$(YELLOW)📝 Installing pre-commit hooks...$(NC)"
 	$(Q)$(VENV_BIN)/pre-commit install
@@ -176,20 +171,10 @@ test: ## Run all tests
 	$(Q)$(PYTEST)
 	@echo "$(GREEN)✓$(NC) All tests completed"
 
-test-fast: ## Run all tests except integration and performance tests
-	$(ECHO) "$(YELLOW)Running tests except integration and performance...$(NC)"
-	$(Q)$(PYTEST) -m "not integration and not performance" --tb=short
+test-fast: ## Run all tests without coverage reports
+	$(ECHO) "$(YELLOW)Running tests without coverage...$(NC)"
+	$(Q)$(PYTEST) --no-cov -q
 	@echo "$(GREEN)✓$(NC) Fast tests completed"
-
-test-integration: ## Run integration tests only (exclude performance tests)
-	$(ECHO) "$(YELLOW)Running integration tests only...$(NC)"
-	$(Q)$(PYTEST) -m "integration and not performance" --tb=short
-	@echo "$(GREEN)✓$(NC) Integration tests completed"
-
-test-performance: ## Run performance tests only
-	$(ECHO) "$(YELLOW)Running performance tests only...$(NC)"
-	$(Q)$(PYTEST) -m "performance" --tb=short
-	@echo "$(GREEN)✓$(NC) Performance tests completed"
 
 test-cov: ## Run all tests with coverage
 	$(ECHO) "$(YELLOW)Running all tests with coverage...$(NC)"
@@ -205,39 +190,25 @@ format-check: ## Check if code is properly formatted (without fixing)
 	$(ECHO) "$(YELLOW)Checking code formatting...$(NC)"
 	$(Q)$(RUFF) format --check .
 	$(Q)$(RUFF) check --diff .
-	@if command -v prettier >/dev/null 2>&1; then \
-		prettier --check "**/*.{json,yaml,yml,md}" --ignore-path .gitignore || true; \
-	fi
+	$(Q)$(PRETTIER) --check "**/*.{json,yaml,yml,md}"
 	@echo "$(GREEN)✓$(NC) Code formatting verified"
 	@echo "$(GREEN)✅ All formatting completed$(NC)"
 
-format-code: ## Format Python code with pyupgrade + Ruff
+format-code: ## Format Python code with Ruff
 	$(ECHO) "$(YELLOW)Formatting Python code...$(NC)"
-	@if command -v $(PYUPGRADE) >/dev/null 2>&1; then \
-		find src/ tests/ -name "*.py" ! -name "$(EXCLUDE_FILES)" -exec $(PYUPGRADE) --py312-plus {} +; \
-	else \
-		echo "$(YELLOW)⚠ pyupgrade not found - run 'make install-deps' to install it$(NC)"; \
-		exit 1; \
-	fi
 	$(Q)$(RUFF) format .
 	$(Q)$(RUFF) check --fix .
 	@echo "$(GREEN)✓$(NC) Python code formatted"
 
 format-docs: ## Format documentation and config files with Prettier
 	$(ECHO) "$(YELLOW)Formatting documentation files...$(NC)"
-	@if command -v prettier >/dev/null 2>&1; then \
-		prettier --write "**/*.{md,yml,yaml,json}"; \
-		echo "$(GREEN)✓$(NC) Documentation formatted with prettier"; \
-	else \
-		echo "$(YELLOW)⚠ prettier not found - install with 'npm install -g prettier'$(NC)"; \
-		echo "$(YELLOW)  Or use pre-commit: pre-commit run prettier --all-files$(NC)"; \
-		exit 1; \
-	fi
+	$(Q)$(PRETTIER) --write "**/*.{md,yml,yaml,json}"
+	@echo "$(GREEN)✓$(NC) Documentation formatted with prettier"
 
 # =============================================================================
 # Code Quality & Linting
 # =============================================================================
-check: lint type-check code-quality security-check ## Run all code quality checks
+check: lint type-check-strict code-quality security-check ## Run all code quality checks
 	@echo "$(GREEN)✅ All code quality checks completed$(NC)"
 
 lint: ## Run linting checks
@@ -284,11 +255,11 @@ security-audit: ## Generate detailed security report
 # =============================================================================
 # Build & Release
 # =============================================================================
-build: clean-build ## Build wheel only and validate package
-	$(ECHO) "$(YELLOW)Building wheel...$(NC)"
-	$(Q)$(PYTHON) -m build --wheel
+build: clean-build ## Build sdist and wheel and validate them
+	$(ECHO) "$(YELLOW)Building sdist and wheel...$(NC)"
+	$(Q)$(PYTHON) -m build
 	$(Q)$(PYTHON) -m twine check dist/*
-	@echo "$(GREEN)✅ Wheel built and validated successfully$(NC)"
+	@echo "$(GREEN)✅ Package built and validated successfully$(NC)"
 
 
 # =============================================================================
@@ -322,7 +293,7 @@ clean-test: ## Remove test artifacts
 
 clean-cache: ## Remove tool cache files
 	$(ECHO) "$(YELLOW)Cleaning tool caches...$(NC)"
-	$(Q)rm -rf .ruff_cache/ .mypy_cache/ .claude/
+	$(Q)rm -rf .ruff_cache/ .mypy_cache/
 	@echo "$(GREEN)✓$(NC) Tool caches cleaned"
 
 # =============================================================================
@@ -359,7 +330,7 @@ docs: ## Build MkDocs documentation with all optional dependencies
 	@echo "$(YELLOW)Installing all optional dependencies for complete API documentation...$(NC)"
 	$(Q)$(PIP) install -e ".[docs,rs232]" --quiet
 	@echo "$(YELLOW)Building MkDocs site...$(NC)"
-	$(Q)$(VENV_BIN)/mkdocs build --clean
+	$(Q)$(VENV_BIN)/mkdocs build --clean --strict
 	@echo "$(GREEN)✓$(NC) Documentation built in $(DOCS_BUILD_DIR)/"
 	@echo "$(YELLOW)Open:$(NC) file://$(PWD)/$(DOCS_BUILD_DIR)/index.html"
 
@@ -378,18 +349,8 @@ clean-docs: ## Clean documentation build artifacts
 # =============================================================================
 validate-config: ## Validate project configuration
 	@echo "$(YELLOW)Validating project configuration...$(NC)"
-	@$(PYTHON3) -c "import tomllib; print('✓ pyproject.toml is valid')" 2>/dev/null || (echo "$(RED)✗ pyproject.toml is invalid$(NC)" && exit 1)
-	@if [ ! -f "pyproject.toml" ]; then \
-		echo "$(RED)✗ pyproject.toml not found$(NC)"; \
-		exit 1; \
-	fi
+	@$(PYTHON3) -c "import tomllib; tomllib.load(open('pyproject.toml', 'rb'))" || (echo "$(RED)✗ pyproject.toml is missing or invalid$(NC)" && exit 1)
 	@echo "$(GREEN)✓$(NC) Configuration validated"
-
-ensure-venv: ## Ensure virtual environment exists
-	@if [ ! -d "$(VENV_DIR)" ]; then \
-		echo "$(RED)Virtual environment not found. Run 'make install' first.$(NC)"; \
-		exit 1; \
-	fi
 
 check-project-structure: ## Validate project structure and required files
 	@echo "$(YELLOW)Project Structure Validation:$(NC)"

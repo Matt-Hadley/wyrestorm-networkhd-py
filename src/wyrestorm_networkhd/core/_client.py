@@ -35,7 +35,10 @@ _MAX_RECONNECT_DELAY = 30.0
 
 # Header line of an RS-232 data notification; <infolen> bytes of data follow after CR LF (PDF section 12).
 # The digit count is not bounded here so an oversized header is recognised (and dropped) rather than dispatched.
-_SERIALINFO_HEADER = re.compile(r"^notify serialinfo \S+ (?:hex|ascii) (\d+):$")
+_SERIALINFO_HEADER = re.compile(r"^notify serialinfo \S+ (hex|ascii) (\d+):$")
+
+# What hex-mode serialinfo data may contain; anything else means <infolen> overstated the data
+_HEX_PAYLOAD = re.compile(rb"[0-9A-Fa-f\s]*")
 
 # Largest <infolen> accepted; hex data of a 16 KiB RS-232 burst is ~48 KiB, far above what endpoints send in one go
 _MAX_SERIALINFO_LEN = 65536
@@ -187,8 +190,8 @@ class _BaseNetworkHDClient(ABC):
         # Reader task and line framing
         self._message_dispatcher_task: asyncio.Task | None = None
         self._reader_idle = asyncio.Event()
-        self._buffer = b""
-        self._pending_serialinfo: tuple[str, int] | None = None
+        self._buffer = bytearray()
+        self._pending_serialinfo: tuple[str, int, bool] | None = None  # header, <infolen>, hex mode
         self._pending_irinfo: str | None = None
         self._skip_line = False  # drop everything up to the next line break (after discarding an overlong line)
 
@@ -288,6 +291,9 @@ class _BaseNetworkHDClient(ABC):
                 It receives the parsed notification object. A coroutine is scheduled as a task; exceptions
                 are logged.
 
+        Raises:
+            ValueError: If notification_type isn't one of the available types.
+
         Example:
             ```python
             def handle_endpoint_status(notification):
@@ -296,6 +302,9 @@ class _BaseNetworkHDClient(ABC):
             client.register_notification_callback("endpoint", handle_endpoint_status)
             ```
         """
+        known = [info["type"] for info in NotificationParser._NOTIFICATION_MAPPINGS.values()]
+        if notification_type not in known:
+            raise ValueError(f"Unknown notification type {notification_type!r}, expected one of {known}")
         self.notification_handler.register_callback(notification_type, callback)
 
     def unregister_notification_callback(
@@ -342,7 +351,7 @@ class _BaseNetworkHDClient(ABC):
                     await self._close_transport()
                 raise
 
-            self._buffer = b""
+            self._buffer = bytearray()
             self._pending_serialinfo = None
             self._pending_irinfo = None
             self._skip_line = False
@@ -438,12 +447,12 @@ class _BaseNetworkHDClient(ABC):
         command = command.strip()
         if "\r" in command or "\n" in command:
             raise CommandError(f"Command must be a single line: {command!r}")
-        if not self.is_connected():
-            if self._connection_lost_reason is not None:
-                raise ConnectionLostError(self._target, self._connection_lost_reason)
-            raise ConnectionError("Not connected")
-
         async with self._command_lock:
+            # Checked under the lock: the link may have dropped while this command waited for the one before it
+            if not self.is_connected():
+                if self._connection_lost_reason is not None:
+                    raise ConnectionLostError(self._target, self._connection_lost_reason)
+                raise ConnectionError("Not connected")
             try:
                 await self._drain_stale_lines()
                 queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -570,68 +579,81 @@ class _BaseNetworkHDClient(ABC):
         Multi-line notifications are assembled first: ``notify serialinfo`` by its <infolen> byte count,
         ``notify irinfo`` while lines look like IR data, until its closing quote; the handler gets header and data
         as one "\\n"-joined string. Lines and pending notifications are capped at 64 KiB; a serialinfo with a larger
-        <infolen> is dropped.
+        <infolen> is dropped. Hex-mode serialinfo data must be hex digits and whitespace: other bytes mean <infolen>
+        overstated the data, so framing is abandoned and the buffer is parsed as normal lines.
         """
         self._buffer += data
-        while True:
-            if self._pending_serialinfo is not None:
-                header, length = self._pending_serialinfo
-                if len(self._buffer) < length:
-                    return
-                serial_data, self._buffer = self._buffer[:length], self._buffer[length:]
-                self._pending_serialinfo = None
-                # No terminator is promised after the data: consume a line break if one is already here; anything
-                # else (including a late one) is parsed as normal lines
-                if self._buffer.startswith((b"\r\n", b"\n")):
-                    self._buffer = self._buffer[self._buffer.index(b"\n") + 1 :]
-                self._dispatch_notification(f"{header}\n{serial_data.decode('utf-8', errors='replace')}")
-                continue
-
-            if b"\n" not in self._buffer:
-                if len(self._buffer) > _MAX_LINE_LEN:
-                    self.logger.warning(f"Dropping {len(self._buffer)} bytes received without a line break")
-                    self._buffer = b""
-                    self._skip_line = True
-                return
-            raw_line, self._buffer = self._buffer.split(b"\n", 1)
-            if self._skip_line or len(raw_line) > _MAX_LINE_LEN:
-                if not self._skip_line:
-                    self.logger.warning(f"Dropping {len(raw_line)}-byte line")
-                self._skip_line = False
-                continue
-            line = raw_line.decode("utf-8", errors="replace").strip()
-            if not line:
-                continue
-
-            if self._pending_irinfo is not None:
-                if _IRINFO_DATA.match(line) and len(self._pending_irinfo) + len(line) < _MAX_LINE_LEN:
-                    self._pending_irinfo += "\n" + line
-                    if '"' in line:
-                        line, self._pending_irinfo = self._pending_irinfo, None
-                        self._dispatch_notification(line)
+        buffer = self._buffer
+        pos = 0  # start of unconsumed data; consumed bytes are removed once, on return
+        try:
+            while True:
+                if self._pending_serialinfo is not None:
+                    header, length, hex_mode = self._pending_serialinfo
+                    if hex_mode and not _HEX_PAYLOAD.fullmatch(buffer, pos, pos + length):
+                        self.logger.debug(f"Abandoning serialinfo framing, data isn't hex: {header!r}")
+                        self._pending_serialinfo = None
+                        continue
+                    if len(buffer) - pos < length:
+                        return
+                    serial_data = bytes(buffer[pos : pos + length])
+                    pos += length
+                    self._pending_serialinfo = None
+                    # No terminator is promised after the data: consume a line break if one is already here;
+                    # anything else (including a late one) is parsed as normal lines
+                    if buffer.startswith((b"\r\n", b"\n"), pos):
+                        pos = buffer.index(b"\n", pos) + 1
+                    self._dispatch_notification(f"{header}\n{serial_data.decode('utf-8', errors='replace')}")
                     continue
-                # Not IR data (or too long): the closing quote never came, so hand over what we have and handle
-                # this line normally
-                pending, self._pending_irinfo = self._pending_irinfo, None
-                self._dispatch_notification(pending)
 
-            self.logger.debug(f"Message dispatcher received line: {line!r}")
-            if line.startswith("notify "):
-                if match := _SERIALINFO_HEADER.match(line):
-                    digits = match.group(1)
-                    if len(digits) > len(str(_MAX_SERIALINFO_LEN)) or int(digits) > _MAX_SERIALINFO_LEN:
-                        # Without a believable length the data can't be framed; its lines are handled as they come
-                        self.logger.warning(f"Dropping serialinfo with oversized length: {line[:100]!r}")
+                end = buffer.find(b"\n", pos)
+                if end == -1:
+                    if len(buffer) - pos > _MAX_LINE_LEN:
+                        self.logger.warning(f"Dropping {len(buffer) - pos} bytes received without a line break")
+                        pos = len(buffer)
+                        self._skip_line = True
+                    return
+                raw_line = buffer[pos:end]
+                pos = end + 1
+                if self._skip_line or len(raw_line) > _MAX_LINE_LEN:
+                    if not self._skip_line:
+                        self.logger.warning(f"Dropping {len(raw_line)}-byte line")
+                    self._skip_line = False
+                    continue
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if not line:
+                    continue
+
+                if self._pending_irinfo is not None:
+                    if _IRINFO_DATA.match(line) and len(self._pending_irinfo) + len(line) < _MAX_LINE_LEN:
+                        self._pending_irinfo += "\n" + line
+                        if '"' in line:
+                            line, self._pending_irinfo = self._pending_irinfo, None
+                            self._dispatch_notification(line)
+                        continue
+                    # Not IR data (or too long): the closing quote never came, so hand over what we have and handle
+                    # this line normally
+                    pending, self._pending_irinfo = self._pending_irinfo, None
+                    self._dispatch_notification(pending)
+
+                self.logger.debug(f"Message dispatcher received line: {line!r}")
+                if line.startswith("notify "):
+                    if match := _SERIALINFO_HEADER.match(line):
+                        mode, digits = match.groups()
+                        if len(digits) > len(str(_MAX_SERIALINFO_LEN)) or int(digits) > _MAX_SERIALINFO_LEN:
+                            # Without a believable length the data can't be framed; its lines are handled as they come
+                            self.logger.warning(f"Dropping serialinfo with oversized length: {line[:100]!r}")
+                        else:
+                            self._pending_serialinfo = (line, int(digits), mode == "hex")
+                    elif line.startswith("notify irinfo ") and line.count('"') == 1:
+                        self._pending_irinfo = line
                     else:
-                        self._pending_serialinfo = (line, int(digits))
-                elif line.startswith("notify irinfo ") and line.count('"') == 1:
-                    self._pending_irinfo = line
+                        self._dispatch_notification(line)
+                elif self._response_queue is not None:
+                    self._response_queue.put_nowait(line)
                 else:
-                    self._dispatch_notification(line)
-            elif self._response_queue is not None:
-                self._response_queue.put_nowait(line)
-            else:
-                self.logger.debug(f"Dropping unsolicited line: {line}")
+                    self.logger.debug(f"Dropping unsolicited line: {line}")
+        finally:
+            del buffer[:pos]
 
     def _dispatch_notification(self, notification: str) -> None:
         """Hand a complete notification to the notification handler."""
