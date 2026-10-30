@@ -79,7 +79,7 @@ class RebootResetCommands:
         if isinstance(devices, str):
             devices = [devices]
         device_list = " ".join(devices)
-        response = await self.client.send_command(f"config set device reboot {device_list}", response_timeout=10.0)
+        response = await self.client.send_command(f"config set device reboot {device_list}")
         return require_contains(response, "the following device will reboot now:")
 
     # =============================================================
@@ -128,7 +128,5 @@ class RebootResetCommands:
         if isinstance(devices, str):
             devices = [devices]
         device_list = " ".join(devices)
-        response = await self.client.send_command(
-            f"config set device restorefactory {device_list}", response_timeout=10.0
-        )
+        response = await self.client.send_command(f"config set device restorefactory {device_list}")
         return require_contains(response, "the following device will restore now:")
