@@ -3,6 +3,7 @@
 import pytest
 
 from wyrestorm_networkhd.core.client_rs232 import NetworkHDClientRS232
+from wyrestorm_networkhd.exceptions import ConnectionLostError
 
 from .conftest import FAST
 
@@ -44,3 +45,16 @@ async def test_port_closed_underneath_is_not_connected(rs232_client, device):
 
     assert not rs232_client.is_connected()
     assert rs232_client.get_connection_state() == "disconnected"
+
+
+async def test_failed_write_marks_connection_lost(rs232_client, device):
+    """Regression: a serial write failure left the client 'connected'."""
+    device.serial_ports[-1].write = lambda _data, callback: callback(OSError("device not configured"))
+
+    with pytest.raises(OSError):
+        await rs232_client.send_command("cmd", **FAST)
+
+    assert not rs232_client.is_connected()
+    assert rs232_client.get_connection_state() == "error"
+    with pytest.raises(ConnectionLostError):
+        await rs232_client.send_command("cmd", **FAST)

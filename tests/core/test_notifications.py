@@ -96,3 +96,28 @@ async def test_irinfo_spanning_lines_is_assembled(ssh_client, device):
     assert len(received) == 1
     assert received[0].device == "display1"
     assert received[0].ir_data.split() == ["0000", "0067", "0000", "0015", "01FE"]
+
+
+async def test_unterminated_irinfo_does_not_swallow_later_lines(ssh_client, device):
+    """Regression: an irinfo header without a closing quote made the client join every later line onto it."""
+    irinfo, endpoint = [], []
+    ssh_client.register_notification_callback("irinfo", irinfo.append)
+    ssh_client.register_notification_callback("endpoint", endpoint.append)
+    device.shell.feed('notify irinfo display1 "0000 0067\r\n0000 0015\r\nnotify endpoint + source1\r\n')
+    await settle()
+
+    assert [n.device for n in endpoint] == ["source1"]
+    assert irinfo == []  # handed over incomplete; the parser rejects the unclosed quote (logged)
+    device.reply("cmd", "cmd\r\nok\r\n")
+    assert await ssh_client.send_command("cmd", response_timeout=0.5, response_line_timeout=0.05) == "cmd\nok"
+
+
+async def test_serialinfo_length_counts_bytes(ssh_client, device):
+    """Regression: <infolen> was counted in decoded characters, so multi-byte data was cut wrongly."""
+    received = []
+    ssh_client.register_notification_callback("serialinfo", received.append)
+    data = "café"  # 5 bytes in UTF-8
+    device.shell.feed(f"notify serialinfo display1 ascii 5:\r\n{data}notify endpoint + source1\r\n")
+    await settle()
+
+    assert [n.serial_data for n in received] == [data]

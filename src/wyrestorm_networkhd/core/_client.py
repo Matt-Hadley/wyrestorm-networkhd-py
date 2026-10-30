@@ -32,8 +32,11 @@ from ..models.api_notifications import (
 # Upper bound for the reconnect backoff delay, in seconds
 _MAX_RECONNECT_DELAY = 30.0
 
-# Header line of an RS-232 data notification; <infolen> characters of data follow after CR LF (PDF section 12)
+# Header line of an RS-232 data notification; <infolen> bytes of data follow after CR LF (PDF section 12)
 _SERIALINFO_HEADER = re.compile(r"^notify serialinfo \S+ (?:hex|ascii) (\d+):$")
+
+# A continuation line of a ``notify irinfo`` notification: hex words, optionally ending with the closing quote
+_IRINFO_DATA = re.compile(r'^[0-9A-Fa-f]+(?:\s+[0-9A-Fa-f]+)*\s*"?$')
 
 
 class _ConnectionState(Enum):
@@ -170,11 +173,13 @@ class _BaseNetworkHDClient(ABC):
         self._connection_error: str | None = None
         self._connection_lost_reason: str | None = None
         self._reconnect_lock = asyncio.Lock()
+        # Serialises connect() and disconnect() so only one reader task and transport exist at a time
+        self._connection_lock = asyncio.Lock()
 
         # Reader task and line framing
         self._message_dispatcher_task: asyncio.Task | None = None
         self._reader_idle = asyncio.Event()
-        self._buffer = ""
+        self._buffer = b""
         self._pending_serialinfo: tuple[str, int] | None = None
         self._pending_irinfo: str | None = None
 
@@ -308,35 +313,43 @@ class _BaseNetworkHDClient(ABC):
             ConnectionError: If the connection fails.
             AuthenticationError: If authentication fails (SSH).
         """
-        await self._teardown()
-        self._set_connection_state("connecting")
-        self.logger.info(f"Connecting to {self._target}")
-        try:
-            await self._open_transport()
-        except Exception as e:
-            self._set_connection_state("error", f"Connection failed: {e}")
-            with contextlib.suppress(Exception):
-                await self._close_transport()
-            if isinstance(e, NetworkHDError):
+        async with self._connection_lock:
+            await self._teardown()
+            self._set_connection_state(_ConnectionState.CONNECTING)
+            self.logger.info(f"Connecting to {self._target}")
+            try:
+                await self._open_transport()
+            except Exception as e:
+                self._set_connection_state(_ConnectionState.ERROR, f"Connection failed: {e}")
+                with contextlib.suppress(Exception):
+                    await self._close_transport()
+                if isinstance(e, NetworkHDError):
+                    raise
+                raise ConnectionError(f"Connection failed: {e}") from e
+            except BaseException:
+                # Cancelled: close whatever was opened so no session is left behind
+                self._set_connection_state(_ConnectionState.DISCONNECTED)
+                with contextlib.suppress(Exception):
+                    await self._close_transport()
                 raise
-            raise ConnectionError(f"Connection failed: {e}") from e
 
-        self._buffer = ""
-        self._pending_serialinfo = None
-        self._pending_irinfo = None
-        self._connection_lost_reason = None
-        self._message_dispatcher_task = asyncio.create_task(self._message_dispatcher())
-        self._set_connection_state("connected")
-        self.logger.info(f"Successfully connected to {self._target}")
+            self._buffer = b""
+            self._pending_serialinfo = None
+            self._pending_irinfo = None
+            self._connection_lost_reason = None
+            self._message_dispatcher_task = asyncio.create_task(self._message_dispatcher())
+            self._set_connection_state(_ConnectionState.CONNECTED)
+            self.logger.info(f"Successfully connected to {self._target}")
 
     async def disconnect(self) -> None:
         """Disconnect from the NetworkHD device and stop the reader task."""
-        self.logger.info(f"Disconnecting from {self._target}")
-        try:
-            await self._teardown(suppress_errors=False)
-        finally:
-            self._set_connection_state("disconnected")
-        self.logger.info(f"Disconnected from {self._target}")
+        async with self._connection_lock:
+            self.logger.info(f"Disconnecting from {self._target}")
+            try:
+                await self._teardown(suppress_errors=False)
+            finally:
+                self._set_connection_state(_ConnectionState.DISCONNECTED)
+            self.logger.info(f"Disconnected from {self._target}")
 
     def is_connected(self) -> bool:
         """Check if connected to the device.
@@ -346,7 +359,7 @@ class _BaseNetworkHDClient(ABC):
         """
         connected = self._connection_state == _ConnectionState.CONNECTED and self._transport_alive()
         if not connected and self._connection_state == _ConnectionState.CONNECTED:
-            self._set_connection_state("disconnected")
+            self._set_connection_state(_ConnectionState.DISCONNECTED)
         return connected
 
     async def reconnect(self, max_attempts: int = 5, delay: float = 1.0) -> None:
@@ -372,7 +385,7 @@ class _BaseNetworkHDClient(ABC):
                 if attempt > 1:
                     # Jitter only spreads retries out; it has no security role.
                     wait_time = min(delay * 2 ** (attempt - 2), _MAX_RECONNECT_DELAY) * random.uniform(0.5, 1.0)  # nosec B311
-                    self._set_connection_state("reconnecting", str(last_error))
+                    self._set_connection_state(_ConnectionState.RECONNECTING, str(last_error))
                     self.logger.info(f"Waiting {wait_time:.1f}s before reconnection attempt {attempt}/{max_attempts}")
                     await asyncio.sleep(wait_time)
                 try:
@@ -394,7 +407,8 @@ class _BaseNetworkHDClient(ABC):
         """Send a command to the device and get the response.
 
         The response starts at the line echoing the command (earlier, stale lines are dropped) and ends when no
-        further line arrives for response_line_timeout. Devices that do not echo get all lines received.
+        further line arrives for response_line_timeout. Devices that do not echo get all lines received. A reply
+        still arriving when response_timeout expires is not returned truncated: TimeoutError is raised.
 
         Args:
             command: The command string to send.
@@ -408,7 +422,7 @@ class _BaseNetworkHDClient(ABC):
             ConnectionError: If not connected to the device (ConnectionLostError if the link dropped).
             CommandError: If the command contains a line break or the device reports an error.
             UnknownCommandError: If the device answers "unknown command".
-            TimeoutError: If no response line arrives within response_timeout.
+            TimeoutError: If the response has not ended within response_timeout.
         """
         command = command.strip()
         if "\r" in command or "\n" in command:
@@ -457,8 +471,8 @@ class _BaseNetworkHDClient(ABC):
             The response lines, starting at the command echo when one was seen.
 
         Raises:
-            TimeoutError: If no line arrives within response_timeout.
-            ConnectionLostError: If the link drops while waiting.
+            TimeoutError: If no line arrives within response_timeout, or lines are still arriving after it.
+            ConnectionLostError: If the link drops, or the client disconnects, while waiting.
         """
         lines: list[str] = []
         echo_index: int | None = None
@@ -466,22 +480,24 @@ class _BaseNetworkHDClient(ABC):
         def add(line: str | None) -> None:
             nonlocal echo_index
             if line is None:
-                raise ConnectionLostError(self._target, self._connection_lost_reason)
+                raise ConnectionLostError(self._target, self._connection_lost_reason or "connection closed")
             if echo_index is None and line == command:
                 echo_index = len(lines)
             lines.append(line)
 
+        deadline = asyncio.get_running_loop().time() + response_timeout
         try:
-            async with asyncio.timeout(response_timeout):
-                add(await queue.get())
-                while True:
-                    try:
-                        add(await asyncio.wait_for(queue.get(), timeout=response_line_timeout))
-                    except builtins.TimeoutError:
-                        break
+            add(await asyncio.wait_for(queue.get(), timeout=response_timeout))
         except builtins.TimeoutError:
-            if not lines:
-                raise TimeoutError(command, response_timeout) from None
+            raise TimeoutError(command, response_timeout) from None
+        while True:
+            try:
+                line = await asyncio.wait_for(queue.get(), timeout=response_line_timeout)
+            except builtins.TimeoutError:
+                break  # the idle gap ends the response, even if it ran past the deadline
+            if line is not None and asyncio.get_running_loop().time() > deadline:
+                raise TimeoutError(command, response_timeout)
+            add(line)
 
         if echo_index:
             self.logger.debug(f"Dropping stale lines before echo of '{command}': {lines[:echo_index]}")
@@ -523,29 +539,26 @@ class _BaseNetworkHDClient(ABC):
                     raise ConnectionError("transport closed")
                 data = await self._read_available()
                 if data:
-                    self._feed(data.decode("utf-8", errors="ignore"))
+                    self._feed(data)
                     continue
                 self._reader_idle.set()
                 await asyncio.sleep(self.message_dispatcher_interval)
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            self.logger.warning(f"Connection to {self._target} lost: {e}")
-            self._connection_lost_reason = str(e)
-            self._set_connection_state("error", f"Connection lost: {e}")
-            if self._response_queue is not None:
-                self._response_queue.put_nowait(None)
+            self._mark_connection_lost(str(e))
         finally:
             self._reader_idle.set()
             if self._message_dispatcher_task is asyncio.current_task():
                 self._message_dispatcher_task = None
             self.logger.debug("Message dispatcher stopped")
 
-    def _feed(self, data: str) -> None:
-        """Split received text into lines and route each one.
+    def _feed(self, data: bytes) -> None:
+        """Split received bytes into lines and route each one.
 
-        Multi-line notifications are assembled first: ``notify serialinfo`` by its <infolen> character count,
-        ``notify irinfo`` until its closing quote; the handler gets header and data as one "\\n"-joined string.
+        Multi-line notifications are assembled first: ``notify serialinfo`` by its <infolen> byte count,
+        ``notify irinfo`` while lines look like IR data, until its closing quote; the handler gets header and data
+        as one "\\n"-joined string.
         """
         self._buffer += data
         while True:
@@ -555,22 +568,26 @@ class _BaseNetworkHDClient(ABC):
                     return
                 serial_data, self._buffer = self._buffer[:length], self._buffer[length:]
                 self._pending_serialinfo = None
-                self._dispatch_notification(f"{header}\n{serial_data}")
+                self._dispatch_notification(f"{header}\n{serial_data.decode('utf-8', errors='replace')}")
                 continue
 
-            if "\n" not in self._buffer:
+            if b"\n" not in self._buffer:
                 return
-            line, self._buffer = self._buffer.split("\n", 1)
-            line = line.strip()
+            raw_line, self._buffer = self._buffer.split(b"\n", 1)
+            line = raw_line.decode("utf-8", errors="replace").strip()
             if not line:
                 continue
 
             if self._pending_irinfo is not None:
-                self._pending_irinfo += "\n" + line
-                if '"' in line:
-                    line, self._pending_irinfo = self._pending_irinfo, None
-                    self._dispatch_notification(line)
-                continue
+                if _IRINFO_DATA.match(line):
+                    self._pending_irinfo += "\n" + line
+                    if '"' in line:
+                        line, self._pending_irinfo = self._pending_irinfo, None
+                        self._dispatch_notification(line)
+                    continue
+                # Not IR data: the closing quote never came, so hand over what we have and handle this line normally
+                pending, self._pending_irinfo = self._pending_irinfo, None
+                self._dispatch_notification(pending)
 
             self.logger.debug(f"Message dispatcher received line: {line!r}")
             if line.startswith("notify "):
@@ -590,8 +607,20 @@ class _BaseNetworkHDClient(ABC):
         self._record_notification_received()
         self.notification_handler.handle_notification(notification)
 
+    def _mark_connection_lost(self, reason: str) -> None:
+        """Record that the link died and fail the command waiting for a response, if any."""
+        self.logger.warning(f"Connection to {self._target} lost: {reason}")
+        self._connection_lost_reason = reason
+        self._set_connection_state(_ConnectionState.ERROR, f"Connection lost: {reason}")
+        if self._response_queue is not None:
+            self._response_queue.put_nowait(None)
+
     async def _teardown(self, *, suppress_errors: bool = True) -> None:
-        """Stop the reader task and close the transport."""
+        """Fail the command waiting for a response, stop the reader task and close the transport."""
+        # Detach the waiting command's queue so it fails now and never gets a line from the next session
+        queue, self._response_queue = self._response_queue, None
+        if queue is not None:
+            queue.put_nowait(None)
         task, self._message_dispatcher_task = self._message_dispatcher_task, None
         if task is not None and not task.done():
             task.cancel()
@@ -620,26 +649,18 @@ class _BaseNetworkHDClient(ABC):
         """Record that a notification was received."""
         self._connection_metrics["notifications_received"] += 1
 
-    def _set_connection_state(self, state: str, error: str | None = None) -> None:
+    def _set_connection_state(self, state: _ConnectionState, error: str | None = None) -> None:
         """Update connection state and error information.
 
         Args:
-            state: New connection state string.
+            state: New connection state.
             error: Optional error message.
         """
-        old_state = self._connection_state
-
-        # Convert string state to enum value using the enum's value lookup
-        try:
-            self._connection_state = _ConnectionState(state)
-        except ValueError:
-            self.logger.warning(f"Unknown connection state: {state}")
-            self._connection_state = _ConnectionState.ERROR
-
+        old_state, self._connection_state = self._connection_state, state
         self._connection_error = error
 
-        if self._connection_state != old_state:
-            self.logger.info(f"Connection state changed: {old_state.value} -> {self._connection_state.value}")
+        if state != old_state:
+            self.logger.info(f"Connection state changed: {old_state.value} -> {state.value}")
             if error:
                 self.logger.warning(f"Connection error: {error}")
 
