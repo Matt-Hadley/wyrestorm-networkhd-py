@@ -1,0 +1,5 @@
+# Keep the sdist to the package, tests and project docs; the vendor PDF and repo tooling stay off PyPI.
+prune docs/resources
+prune .claude
+prune .vscode
+prune .github

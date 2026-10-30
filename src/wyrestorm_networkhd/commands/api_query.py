@@ -326,7 +326,7 @@ class APIQueryCommands:
         """
         command = f"config get device info {device}" if device else "config get device info"
         response = await self.client.send_command(command, response_timeout=10, response_line_timeout=3)
-        return DeviceInfo.parse(response, single=device is not None)
+        return DeviceInfo.parse(response, single=bool(device))
 
     async def config_get_device_status(self, device: str | None = None) -> list[DeviceStatus]:
         """Query TX or RX device real-time status
@@ -372,7 +372,7 @@ class APIQueryCommands:
         """
         command = f"config get device status {device}" if device else "config get device status"
         response = await self.client.send_command(command)
-        return DeviceStatus.parse(response, single=device is not None)
+        return DeviceStatus.parse(response, single=bool(device))
 
     # =============================================================
     # 13.3 Query Commands – Stream Matrix Switching

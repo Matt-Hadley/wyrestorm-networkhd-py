@@ -175,6 +175,20 @@ async def test_serialinfo_data_followed_directly_by_notifications(ssh_client, de
     assert [n.device for n in endpoint] == ["source1", "source2"]
 
 
+async def test_hex_serialinfo_split_across_reads(ssh_client, device):
+    """Valid hex data arriving over several reads is framed, not abandoned on the partial window."""
+    serial, endpoint = [], []
+    ssh_client.register_notification_callback("serialinfo", serial.append)
+    ssh_client.register_notification_callback("endpoint", endpoint.append)
+    device.shell.feed("notify serialinfo display1 hex 5:\r\n41")
+    await settle()
+    device.shell.feed(" 42notify endpoint + source1\r\n")
+    await settle()
+
+    assert [n.serial_data for n in serial] == ["41 42"]
+    assert [n.device for n in endpoint] == ["source1"]
+
+
 @pytest.mark.parametrize("length", ["65537", "1" * 200])
 async def test_serialinfo_with_oversized_length_is_not_framed(ssh_client, device, length, caplog):
     serial, endpoint = [], []
