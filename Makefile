@@ -184,7 +184,7 @@ test: ## Run all tests
 
 test-fast: ## Run only fast unit tests (exclude integration and performance tests)
 	$(ECHO) "$(YELLOW)Running fast unit tests only...$(NC)"
-	$(Q)$(PYTEST) -m "unit" --tb=short
+	$(Q)$(PYTEST) -m "not integration and not performance" --tb=short
 	@echo "$(GREEN)✓$(NC) Fast tests completed"
 
 test-integration: ## Run integration tests only (exclude performance tests)
