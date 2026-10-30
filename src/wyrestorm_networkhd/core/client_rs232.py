@@ -1,6 +1,7 @@
 """RS232 client for NetworkHD devices with simplified architecture."""
 
 import asyncio
+from typing import Any
 
 import async_pyserial  # type: ignore[import-untyped]
 
@@ -28,7 +29,7 @@ class NetworkHDClientRS232(_BaseNetworkHDClient):
         circuit_breaker_timeout: float | None = None,
         heartbeat_interval: float | None = None,
         message_dispatcher_interval: float = 0.05,
-        **serial_kwargs,
+        **serial_kwargs: Any,
     ):
         """Initialize RS232 client.
 
