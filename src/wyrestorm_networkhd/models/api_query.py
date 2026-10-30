@@ -1039,22 +1039,12 @@ class MatrixAudio3:
                 Display5 Source2
                 ```
         """
-        data_lines = _skip_to_header(response, "information:")
-        assignments = []
+        # The spec shows "<RX> <TX>" on one line and on separate lines, so pair the tokens in order
+        tokens = " ".join(_skip_to_header(response, "information:")).split()
+        if len(tokens) % 2:
+            raise ResponseError(f"Invalid matrix audio3 response format, missing TX for RX: {tokens[-1]}")
 
-        # Process pairs (RX followed by TX)
-        for i in range(0, len(data_lines), 2):
-            if i + 1 < len(data_lines):
-                rx = data_lines[i].strip()
-                tx = data_lines[i + 1].strip()
-
-                assignments.append(ARCAssignment(rx=rx, tx=tx))
-            else:
-                # Odd number of lines - missing TX for last RX
-                rx = data_lines[i].strip()
-                raise ResponseError(f"Invalid matrix audio3 response format, missing TX for RX: {rx}")
-
-        return cls(assignments=assignments)
+        return cls(assignments=[ARCAssignment(rx=rx, tx=tx) for rx, tx in zip(tokens[0::2], tokens[1::2], strict=True)])
 
 
 @dataclass
@@ -1219,10 +1209,10 @@ class VideoWallSceneList:
             response: The raw response string from the device
 
         Returns:
-            VideoWallSceneList: Parsed video wall scene list information object
+            VideoWallSceneList: Parsed video wall scene list information object (no scenes for an empty list)
 
         Raises:
-            ResponseError: If no valid scenes are found in response
+            ResponseError: If the header is missing or the list has no valid scenes
 
         Notes:
             Underlying NetworkHD API raw response format:
@@ -1239,7 +1229,8 @@ class VideoWallSceneList:
         """
         scene_tuples = _parse_scene_items(response, "scene list:")
 
-        if not scene_tuples:
+        # An empty "scene list:" means no scenes are configured
+        if not scene_tuples and ("scene list:" not in response or _skip_to_header(response, "scene list:")):
             raise ResponseError(f"No valid scenes found in response: {response}")
 
         scenes = [VideoWallScene(videowall=vw, scene=sc) for vw, sc in scene_tuples]

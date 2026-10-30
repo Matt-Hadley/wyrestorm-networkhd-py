@@ -1325,6 +1325,17 @@ class TestMatrixAudio3:
         assert matrix.assignments[0].rx == "Display1"
         assert matrix.assignments[0].tx == "Source3"
 
+    def test_parse_spec_example_one_pair_per_line(self):
+        """'matrix audio3 get' example (NetworkHD API v6.7, PDF page 53): RX and TX on one line."""
+        response = "matrix audio3 information:\nDisplay1 Source1\nDisplay2 Source3\nDisplay5 Source2"
+        matrix = MatrixAudio3.parse(response)
+
+        assert [(a.rx, a.tx) for a in matrix.assignments] == [
+            ("Display1", "Source1"),
+            ("Display2", "Source3"),
+            ("Display5", "Source2"),
+        ]
+
     def test_parse_missing_tx(self):
         """Test parsing with missing TX (odd number of lines)."""
         response = "matrix audio3 information:\nDisplay1\nSource1\nDisplay2"  # Missing TX for Display2
@@ -1472,7 +1483,11 @@ class TestVideoWallSceneList:
         """Test parsing with empty scene list."""
         response = api_v6_7_responses["empty_scene_list"]
 
-        with pytest.raises(ValueError, match="No valid scenes found in response"):
+        assert VideoWallSceneList.parse(response).scenes == []
+
+    @pytest.mark.parametrize("response", ["scene list:\nnodash", "something else"])
+    def test_parse_invalid_scene_list_raises(self, response):
+        with pytest.raises(ResponseError, match="No valid scenes found in response"):
             VideoWallSceneList.parse(response)
 
     def test_parse_with_command_echo(self):
