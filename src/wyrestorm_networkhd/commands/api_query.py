@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from ..exceptions import ResponseError
 from ..models.api_query import (
     CustomMultiviewLayoutList,
@@ -23,9 +25,12 @@ from ..models.api_query import (
     VideowallWithinWallSceneList,
 )
 
+if TYPE_CHECKING:
+    from ..core._client import _BaseNetworkHDClient
+
 
 class APIQueryCommands:
-    def __init__(self, client):
+    def __init__(self, client: "_BaseNetworkHDClient") -> None:
         self.client = client
 
     # =============================================================
