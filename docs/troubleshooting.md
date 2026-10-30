@@ -70,8 +70,8 @@ The policy must be `"auto_add"`, `"reject"` or `"warn"`.
 
 ### `ConnectionLostError: Connection to '...' was lost`
 
-The link dropped (network outage, controller reboot), or `disconnect()`/`connect()` was called while the command
-was waiting. `is_connected()` is now `False`. Call `await client.reconnect()`; see [Reconnecting](index.md#reconnecting).
+The link dropped (network outage, controller reboot), or `disconnect()`/`connect()` was called while the command was
+waiting. `is_connected()` is now `False`. Call `await client.reconnect()`; see [Reconnecting](index.md#reconnecting).
 
 Over RS232 a failed write marks the link as lost, but a cable pulled without an error shows up only as commands raising
 `TimeoutError`.
