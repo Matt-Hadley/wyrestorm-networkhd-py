@@ -63,7 +63,6 @@ jobs:
               with:
                   path: |
                       ~/.cache/pip
-                      .venv
                   key: ${{ runner.os }}-python-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
                   restore-keys: |
                       ${{ runner.os }}-python-${{ matrix.python-version }}-
@@ -93,7 +92,6 @@ jobs:
               with:
                   path: |
                       ~/.cache/pip
-                      .venv
                   key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml') }}
                   restore-keys: |
                       ${{ runner.os }}-python-
@@ -180,7 +178,6 @@ jobs:
               with:
                   path: |
                       ~/.cache/pip
-                      .venv
                   key: ${{ runner.os }}-python-docs-${{ hashFiles('pyproject.toml') }}
                   restore-keys: |
                       ${{ runner.os }}-python-docs-
