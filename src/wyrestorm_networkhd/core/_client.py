@@ -18,6 +18,7 @@ from ..exceptions import (
     CommandError,
     ConnectionError,
     ConnectionLostError,
+    HostKeyMismatchError,
     NetworkHDError,
     ReconnectionError,
     TimeoutError,
@@ -32,8 +33,15 @@ from ..models.api_notifications import (
 # Upper bound for the reconnect backoff delay, in seconds
 _MAX_RECONNECT_DELAY = 30.0
 
-# Header line of an RS-232 data notification; <infolen> bytes of data follow after CR LF (PDF section 12)
+# Header line of an RS-232 data notification; <infolen> bytes of data follow after CR LF (PDF section 12).
+# The digit count is not bounded here so an oversized header is recognised (and dropped) rather than dispatched.
 _SERIALINFO_HEADER = re.compile(r"^notify serialinfo \S+ (?:hex|ascii) (\d+):$")
+
+# Largest <infolen> accepted; hex data of a 16 KiB RS-232 burst is ~48 KiB, far above what endpoints send in one go
+_MAX_SERIALINFO_LEN = 65536
+
+# Longest line, or multi-line irinfo notification, kept while waiting for its end; beyond it the data is dropped
+_MAX_LINE_LEN = 65536
 
 # A continuation line of a ``notify irinfo`` notification: hex words, optionally ending with the closing quote
 _IRINFO_DATA = re.compile(r'^[0-9A-Fa-f]+(?:\s+[0-9A-Fa-f]+)*\s*"?$')
@@ -182,6 +190,7 @@ class _BaseNetworkHDClient(ABC):
         self._buffer = b""
         self._pending_serialinfo: tuple[str, int] | None = None
         self._pending_irinfo: str | None = None
+        self._skip_line = False  # drop everything up to the next line break (after discarding an overlong line)
 
         # Command response handling: lines go to the command currently waiting, None tells it the link died
         self._response_queue: asyncio.Queue[str | None] | None = None
@@ -336,6 +345,7 @@ class _BaseNetworkHDClient(ABC):
             self._buffer = b""
             self._pending_serialinfo = None
             self._pending_irinfo = None
+            self._skip_line = False
             self._connection_lost_reason = None
             self._message_dispatcher_task = asyncio.create_task(self._message_dispatcher())
             self._set_connection_state(_ConnectionState.CONNECTED)
@@ -374,6 +384,7 @@ class _BaseNetworkHDClient(ABC):
         Raises:
             ReconnectionError: If every attempt fails.
             AuthenticationError: If the device rejects the credentials (not retried).
+            HostKeyMismatchError: If the SSH host key matches none of the pinned fingerprints (not retried).
         """
         already_running = self._reconnect_lock.locked()
         async with self._reconnect_lock:
@@ -393,7 +404,7 @@ class _BaseNetworkHDClient(ABC):
                     await self.connect()
                     self.logger.info("Reconnection successful")
                     return
-                except AuthenticationError:
+                except (AuthenticationError, HostKeyMismatchError):
                     raise
                 except Exception as e:
                     last_error = e
@@ -558,7 +569,8 @@ class _BaseNetworkHDClient(ABC):
 
         Multi-line notifications are assembled first: ``notify serialinfo`` by its <infolen> byte count,
         ``notify irinfo`` while lines look like IR data, until its closing quote; the handler gets header and data
-        as one "\\n"-joined string.
+        as one "\\n"-joined string. Lines and pending notifications are capped at 64 KiB; a serialinfo with a larger
+        <infolen> is dropped.
         """
         self._buffer += data
         while True:
@@ -568,31 +580,50 @@ class _BaseNetworkHDClient(ABC):
                     return
                 serial_data, self._buffer = self._buffer[:length], self._buffer[length:]
                 self._pending_serialinfo = None
+                # No terminator is promised after the data: consume a line break if one is already here; anything
+                # else (including a late one) is parsed as normal lines
+                if self._buffer.startswith((b"\r\n", b"\n")):
+                    self._buffer = self._buffer[self._buffer.index(b"\n") + 1 :]
                 self._dispatch_notification(f"{header}\n{serial_data.decode('utf-8', errors='replace')}")
                 continue
 
             if b"\n" not in self._buffer:
+                if len(self._buffer) > _MAX_LINE_LEN:
+                    self.logger.warning(f"Dropping {len(self._buffer)} bytes received without a line break")
+                    self._buffer = b""
+                    self._skip_line = True
                 return
             raw_line, self._buffer = self._buffer.split(b"\n", 1)
+            if self._skip_line or len(raw_line) > _MAX_LINE_LEN:
+                if not self._skip_line:
+                    self.logger.warning(f"Dropping {len(raw_line)}-byte line")
+                self._skip_line = False
+                continue
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line:
                 continue
 
             if self._pending_irinfo is not None:
-                if _IRINFO_DATA.match(line):
+                if _IRINFO_DATA.match(line) and len(self._pending_irinfo) + len(line) < _MAX_LINE_LEN:
                     self._pending_irinfo += "\n" + line
                     if '"' in line:
                         line, self._pending_irinfo = self._pending_irinfo, None
                         self._dispatch_notification(line)
                     continue
-                # Not IR data: the closing quote never came, so hand over what we have and handle this line normally
+                # Not IR data (or too long): the closing quote never came, so hand over what we have and handle
+                # this line normally
                 pending, self._pending_irinfo = self._pending_irinfo, None
                 self._dispatch_notification(pending)
 
             self.logger.debug(f"Message dispatcher received line: {line!r}")
             if line.startswith("notify "):
                 if match := _SERIALINFO_HEADER.match(line):
-                    self._pending_serialinfo = (line, int(match.group(1)))
+                    digits = match.group(1)
+                    if len(digits) > len(str(_MAX_SERIALINFO_LEN)) or int(digits) > _MAX_SERIALINFO_LEN:
+                        # Without a believable length the data can't be framed; its lines are handled as they come
+                        self.logger.warning(f"Dropping serialinfo with oversized length: {line[:100]!r}")
+                    else:
+                        self._pending_serialinfo = (line, int(digits))
                 elif line.startswith("notify irinfo ") and line.count('"') == 1:
                     self._pending_irinfo = line
                 else:
