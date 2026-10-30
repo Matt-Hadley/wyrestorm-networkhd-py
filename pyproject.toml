@@ -83,6 +83,9 @@ Changelog = "https://matt-hadley.github.io/wyrestorm-networkhd-py/changelog/"
 package-dir = { "" = "src" }
 include-package-data = false
 
+[tool.setuptools.package-data]
+wyrestorm_networkhd = ["py.typed"]
+
 
 [tool.setuptools_scm]
 write_to = "src/wyrestorm_networkhd/_version.py"

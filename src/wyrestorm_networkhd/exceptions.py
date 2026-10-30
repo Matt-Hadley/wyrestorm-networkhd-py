@@ -73,7 +73,7 @@ class CommandError(NetworkHDError):
     pass
 
 
-class ResponseError(NetworkHDError):
+class ResponseError(NetworkHDError, ValueError):
     """Exception raised when response parsing fails"""
 
     pass
