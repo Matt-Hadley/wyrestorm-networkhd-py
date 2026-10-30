@@ -370,7 +370,8 @@ class _BaseNetworkHDClient(ABC):
             last_error: Exception | None = None
             for attempt in range(1, max_attempts + 1):
                 if attempt > 1:
-                    wait_time = min(delay * 2 ** (attempt - 2), _MAX_RECONNECT_DELAY) * random.uniform(0.5, 1.0)
+                    # Jitter only spreads retries out; it has no security role.
+                    wait_time = min(delay * 2 ** (attempt - 2), _MAX_RECONNECT_DELAY) * random.uniform(0.5, 1.0)  # nosec B311
                     self._set_connection_state("reconnecting", str(last_error))
                     self.logger.info(f"Waiting {wait_time:.1f}s before reconnection attempt {attempt}/{max_attempts}")
                     await asyncio.sleep(wait_time)
