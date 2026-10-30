@@ -93,22 +93,23 @@ def _build(cls: type[D], kwargs: dict[str, Any]) -> D:
         raise ResponseError(f"Invalid {cls.__name__} data: {e}") from e
 
 
-def _load_device_entries(response: str, key: str) -> list[dict[str, Any]]:
+def _load_device_entries(response: str, key: str, single: bool = False) -> list[dict[str, Any]]:
     """Load the device list from a 'config get device info/status' JSON response, dropping error entries
 
-    The API reports devices it can't query as {"name": ..., "error": ...} entries. A query for one device raises for its
-    error entry; in a list of several devices error entries are skipped so that one bad endpoint doesn't hide the rest.
+    The API reports devices it can't query as {"name": ..., "error": ...} entries. A query for one named device raises
+    for its error entry; in an all-devices query error entries are skipped so that one bad endpoint doesn't hide the rest.
 
     Args:
         response: The raw response string from the device
         key: The JSON key holding the device list ("devices" or "devices status")
+        single: True if the query named one device
 
     Returns:
         list[dict[str, Any]]: The device JSON objects without error entries
 
     Raises:
         ResponseError: If the response has no valid JSON or no device list
-        DeviceQueryError: If the response's only entry is an error entry
+        DeviceQueryError: If single is True and the response has an error entry
     """
     json_start = response.find("{")
     if json_start == -1:
@@ -124,32 +125,35 @@ def _load_device_entries(response: str, key: str) -> list[dict[str, Any]]:
 
     entries: list[dict[str, Any]] = data[key]
     errors = [entry for entry in entries if "error" in entry]
-    if errors and len(entries) == 1:
+    if errors and single:
         raise DeviceQueryError(errors[0].get("name", "unknown"), errors[0].get("error", "unknown error"))
     for entry in errors:
         _LOGGER.debug("Skipping device %s: %s", entry.get("name", "unknown"), entry.get("error"))
     return [entry for entry in entries if "error" not in entry]
 
 
-def _build_devices(entries: list[dict[str, Any]], build: Callable[[dict[str, Any]], D]) -> list[D]:
-    """Build one object per device entry; in a list of several devices, skip (and log) entries that don't parse
+def _build_devices(
+    entries: list[dict[str, Any]], build: Callable[[dict[str, Any]], D], single: bool = False
+) -> list[D]:
+    """Build one object per device entry; in an all-devices query, skip (and log) entries that don't parse
 
     Args:
         entries: The device JSON objects from _load_device_entries
         build: Builds one object from one device's JSON object
+        single: True if the query named one device
 
     Returns:
         list[D]: The objects built
 
     Raises:
-        ResponseError: If the only entry doesn't parse
+        ResponseError: If single is True and an entry doesn't parse
     """
     devices = []
     for entry in entries:
         try:
             devices.append(build(entry))
         except ResponseError as e:
-            if len(entries) == 1:
+            if single:
                 raise
             _LOGGER.warning("Skipping device %s: %s", entry.get("name", "unknown"), e)
     return devices
@@ -703,20 +707,21 @@ class DeviceInfo:
     hdcp: bool | None = None
 
     @classmethod
-    def parse(cls, response: str) -> list["DeviceInfo"]:
+    def parse(cls, response: str, single: bool = False) -> list["DeviceInfo"]:
         """Parse 'config get device info' response
 
         Args:
             response: The raw response string from the device
+            single: True if the query named one device, so that its error or unparseable entry raises
 
         Returns:
-            list[DeviceInfo]: List of parsed device information objects. In a response for several devices, entries the
+            list[DeviceInfo]: List of parsed device information objects. In an all-devices query, entries the
                 controller reports as errors (for example a device that can't be queried), and entries with values that
                 can't be converted (logged), are skipped.
 
         Raises:
-            ResponseError: If the response isn't valid device JSON
-            DeviceQueryError: If the response's only device entry is an error
+            ResponseError: If the response isn't valid device JSON, or single is True and the entry can't be converted
+            DeviceQueryError: If single is True and the device's entry is an error
 
         Notes:
             Underlying NetworkHD API raw response format:
@@ -750,7 +755,7 @@ class DeviceInfo:
                 }
                 ```
         """
-        return _build_devices(_load_device_entries(response, "devices"), cls._parse_device)
+        return _build_devices(_load_device_entries(response, "devices", single), cls._parse_device, single)
 
     @classmethod
     def _parse_device(cls, device_data: dict[str, Any]) -> "DeviceInfo":
@@ -827,20 +832,21 @@ class DeviceStatus:
     audio_output_format: str | None = None  # NHD-400 RX only
 
     @classmethod
-    def parse(cls, response: str) -> list["DeviceStatus"]:
+    def parse(cls, response: str, single: bool = False) -> list["DeviceStatus"]:
         """Parse 'config get device status' response
 
         Args:
             response: The raw response string from the device
+            single: True if the query named one device, so that its error or unparseable entry raises
 
         Returns:
-            list[DeviceStatus]: List of parsed device status information objects. In a response for several devices, entries the
+            list[DeviceStatus]: List of parsed device status information objects. In an all-devices query, entries the
                 controller reports as errors (for example a device that can't be queried), and entries with values that
                 can't be converted (logged), are skipped.
 
         Raises:
-            ResponseError: If the response isn't valid device JSON
-            DeviceQueryError: If the response's only device entry is an error
+            ResponseError: If the response isn't valid device JSON, or single is True and the entry can't be converted
+            DeviceQueryError: If single is True and the device's entry is an error
 
         Notes:
             Underlying NetworkHD API raw response format:
@@ -876,8 +882,9 @@ class DeviceStatus:
                 ```
         """
         return _build_devices(
-            _load_device_entries(response, "devices status"),
+            _load_device_entries(response, "devices status", single),
             lambda device_data: _build(cls, _coerce_fields(cls, device_data)),
+            single,
         )
 
 

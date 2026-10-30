@@ -120,7 +120,7 @@ Commands must be a single line.
 
 The device name you passed is unknown or the device returned an error (for example it is offline). Names are the aliases
 or hostnames from `api.api_query.config_get_devicelist()`. When you query all devices, entries with errors are skipped
-instead of raising.
+instead of raising, even if there is only one device.
 
 ### `ResponseError`
 
@@ -157,7 +157,7 @@ Everything below is importable from `wyrestorm_networkhd` and subclasses `Networ
 | `CommandError`         |                            | The controller answered `ERROR`, or the command contained CR/LF  |
 | `UnknownCommandError`  | `CommandError`             | The controller answered `unknown command`                        |
 | `ResponseError`        | `ValueError`               | A reply couldn't be parsed or wasn't the expected acknowledgment |
-| `DeviceQueryError`     |                            | A device query returned only an error entry for the device       |
+| `DeviceQueryError`     |                            | A query for a named device returned an error entry for it        |
 | `DeviceNotFoundError`  |                            | `config_get_name()` was asked for a device that doesn't exist    |
 
 ## 📞 Getting Help

@@ -1823,6 +1823,11 @@ JSON_MODELS = [
 ]
 
 
+def _parse_named(case: JsonModelCase, response: str):
+    """Parse as a query for one named device, so that a bad entry raises instead of being skipped"""
+    return case.model.parse(response) if case.model is DeviceJsonString else case.model.parse(response, single=True)
+
+
 class TestJsonModelFieldConversion:
     """Unknown keys, empty values and JSON booleans across all JSON device models."""
 
@@ -1884,7 +1889,7 @@ class TestJsonModelFieldConversion:
 
         # Act & Assert
         with pytest.raises(ResponseError, match=case.int_key):
-            case.model.parse(response)
+            _parse_named(case, response)
 
     @pytest.mark.parametrize("case", JSON_MODELS)
     def test_missing_required_field_raises_response_error(self, case):
@@ -1893,7 +1898,7 @@ class TestJsonModelFieldConversion:
 
         # Act & Assert
         with pytest.raises(ResponseError):
-            case.model.parse(response)
+            _parse_named(case, response)
 
 
 class TestDeviceJsonStringShape:
@@ -1951,15 +1956,43 @@ class TestDeviceListErrorEntries:
         "model, header, key",
         [(DeviceInfo, "devices json info", "devices"), (DeviceStatus, "devices status info", "devices status")],
     )
-    def test_only_entry_is_error_raises(self, model, header, key):
+    def test_named_device_error_raises(self, model, header, key):
         # Arrange
         response = f'{header}:\n{{"{key}": [{{"aliasname": "", "error": "no such device", "name": "SOURCE9"}}]}}'
 
         # Act & Assert
         with pytest.raises(DeviceQueryError) as exc_info:
-            model.parse(response)
+            model.parse(response, single=True)
         assert exc_info.value.device_name == "SOURCE9"
         assert exc_info.value.error_message == "no such device"
+
+    @pytest.mark.parametrize(
+        "model, header, key",
+        [(DeviceInfo, "devices json info", "devices"), (DeviceStatus, "devices status info", "devices status")],
+    )
+    def test_all_devices_only_entry_is_error_returns_empty(self, model, header, key):
+        """Regression: an all-devices query on a controller whose one endpoint is offline raised."""
+        # Arrange
+        response = f'{header}:\n{{"{key}": [{{"aliasname": "", "error": "offline", "name": "SOURCE9"}}]}}'
+
+        # Act & Assert
+        assert model.parse(response) == []
+
+    @pytest.mark.parametrize(
+        "model, header, key, bad_field",
+        [
+            (DeviceInfo, "devices json info", "devices", "temperature"),
+            (DeviceStatus, "devices status info", "devices status", "hdmi out frame rate"),
+        ],
+    )
+    def test_all_devices_only_entry_unconvertible_returns_empty(self, model, header, key, bad_field):
+        # Arrange
+        response = f'{header}:\n{{"{key}": [{{"aliasname": "DISPLAY1", "name": "RX1", "{bad_field}": "sixty"}}]}}'
+
+        # Act & Assert
+        assert model.parse(response) == []
+        with pytest.raises(ResponseError):
+            model.parse(response, single=True)
 
     def test_spec_example_device_status(self):
         """Appendix A 'config get device status' example (NetworkHD API v6.7, PDF page 75)."""
