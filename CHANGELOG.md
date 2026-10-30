@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.1.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.1.0...v3.1.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* 3.1.1 — final audit fixes ([84da79e](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/84da79e67dab2ad68c1aed8b527527839b94c410))
+* **core:** check the link under the command lock and sanity-check hex serialinfo ([ac4c6db](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/ac4c6db34a02e25ef21830d35a7313afbf4d1c30))
+* declare the MIT license and Typing :: Typed in package metadata ([42ed4f1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/42ed4f18ad085d1b40772e0036da5faf2fd639ce))
+* keep the vendor PDF and repo tooling out of the sdist; empty device name means all devices ([2066fe9](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/2066fe919e620483fe8927684985aee98e7dc5ed))
+* **models:** decide single-device queries by the request, not the entry count ([2bd7ef5](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/2bd7ef5e33c8ab711a30b0c845f9bd5284178df6))
+* **models:** parse matrix audio3 pairs on one line and accept an empty scene list ([e402d84](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/e402d8479a8e9798bf23c253a7933e807c70d39e))
+* stop make clean deleting the tracked .claude directory ([1219db7](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/1219db770fea6dc97a4889f2201516cb2c3fa9fb))
+
+
+### Documentation
+
+* fix drift in docstrings, contributor docs and agent skills ([f99d8dc](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/f99d8dce48fa6cb72a940e70c84fd400386cf07e))
+* link the security policy by URL so the strict docs build passes ([963bc75](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/963bc75ff65e6ed4aa85f305eab028668566eb95))
+* report vulnerabilities through GitHub private vulnerability reporting ([4072d4c](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/4072d4cdbd25c0e5a0ce6894acb01980fe50547e))
+
 ## [3.1.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.0.1...v3.1.0) (2026-10-30)
 
 
