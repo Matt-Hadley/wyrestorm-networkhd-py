@@ -223,7 +223,9 @@ key it saw in `presented_fingerprint`, and `reconnect()` doesn't retry it.
 
 **Trust on first use.** After every successful connect, `client.host_key_fingerprint` holds the fingerprint of the key
 the controller presented, pinned or not (`None` before the first connect). To trust a controller on first use, connect
-once without pinning, store `client.host_key_fingerprint`, and pass it as `host_key_fingerprints` from then on. After a
+once without pinning, store `client.host_key_fingerprint`, and pass it as `host_key_fingerprints` from then on. To pin
+an existing client without rebuilding it, set `client.host_key_fingerprints = normalize_fingerprints(fp)` (or `None` to
+unpin); it's read at every connect, so the next connect or reconnect is checked against it. After a
 `HostKeyMismatchError`, update the stored value only if you know why the key changed, for example after the controller
 was replaced or reset.
 
