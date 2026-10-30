@@ -49,6 +49,29 @@ _MAX_LINE_LEN = 65536
 # A continuation line of a ``notify irinfo`` notification: hex words, optionally ending with the closing quote
 _IRINFO_DATA = re.compile(r'^[0-9A-Fa-f]+(?:\s+[0-9A-Fa-f]+)*\s*"?$')
 
+# First words of the commands this library sends (the command strings in commands/*.py). The controller echoes every
+# session's commands to every session, so a line starting with one of these may be another client's command echo.
+_COMMAND_VERBS = frozenset(
+    {"cec", "config", "infrared", "matrix", "mscene", "mview", "scene", "serial", "vw", "wscene2"}
+)
+
+
+def _is_foreign_echo(line: str, command: str) -> bool:
+    """Return whether a line looks like the echo of a command other than ours (sent by another API session).
+
+    Reply lines that start with a verb are excluded: headers end with ":" ("matrix information:", "scene list:") and
+    acknowledgements end with success/failure ("scene OfficeVW-Splitmode active success"). Another session's echo
+    of exactly our command can't be told apart from ours; its reply is the same data, so taking it is harmless.
+    """
+    words = line.split()
+    return (
+        bool(words)
+        and words[0] in _COMMAND_VERBS
+        and line != command
+        and not line.endswith(":")
+        and words[-1].lower() not in ("success", "failure")
+    )
+
 
 class _ConnectionState(Enum):
     """Connection state enumeration (private)."""
@@ -428,7 +451,9 @@ class _BaseNetworkHDClient(ABC):
 
         The response starts at the line echoing the command (earlier, stale lines are dropped) and ends when no
         further line arrives for response_line_timeout. Devices that do not echo get all lines received. A reply
-        still arriving when response_timeout expires is not returned truncated: TimeoutError is raised.
+        still arriving when response_timeout expires is not returned truncated: TimeoutError is raised. The controller
+        also echoes other API sessions' commands and replies; such an echo ends the response, and it and the rest of
+        that burst are dropped.
 
         Args:
             command: The command string to send.
@@ -496,24 +521,39 @@ class _BaseNetworkHDClient(ABC):
         """
         lines: list[str] = []
         echo_index: int | None = None
+        # Another session's command echo was seen (the controller echoes every session's traffic to all of them).
+        # Before our echo: the device echoes, so wait for ours past idle gaps. After it: our reply has ended, and the
+        # rest of that burst is dropped.
+        foreign = False
 
         def add(line: str | None) -> None:
-            nonlocal echo_index
+            nonlocal echo_index, foreign
             if line is None:
                 raise ConnectionLostError(self._target, self._connection_lost_reason or "connection closed")
             if echo_index is None and line == command:
-                echo_index = len(lines)
+                echo_index, foreign = len(lines), False
+            elif _is_foreign_echo(line, command):
+                foreign = True
+            if foreign and echo_index is not None:
+                self.logger.debug(f"Dropping another session's line during '{command}': {line}")
+                return
             lines.append(line)
 
-        deadline = asyncio.get_running_loop().time() + response_timeout
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + response_timeout
         try:
             add(await asyncio.wait_for(queue.get(), timeout=response_timeout))
         except builtins.TimeoutError:
             raise TimeoutError(command, response_timeout) from None
         while True:
+            awaiting_echo = foreign and echo_index is None
             try:
-                line = await asyncio.wait_for(queue.get(), timeout=response_line_timeout)
+                line = await asyncio.wait_for(
+                    queue.get(), timeout=max(deadline - loop.time(), 0) if awaiting_echo else response_line_timeout
+                )
             except builtins.TimeoutError:
+                if awaiting_echo:
+                    raise TimeoutError(command, response_timeout) from None
                 break  # the idle gap ends the response, even if it ran past the deadline
             if line is not None and asyncio.get_running_loop().time() > deadline:
                 raise TimeoutError(command, response_timeout)
