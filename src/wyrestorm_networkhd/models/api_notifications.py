@@ -134,7 +134,8 @@ class NotificationIrinfo:
         """Parse endpoint infrared data notification
 
         Args:
-            notification: The notification string to parse
+            notification: The full notification text, which may span several lines joined with "\\n". The quoted
+                data is returned as single-space-separated words.
 
         Returns:
             NotificationIrinfo: Parsed notification object
@@ -180,7 +181,8 @@ class NotificationIrinfo:
         if end_quote_pos <= quote_pos:
             raise ResponseError(f"Invalid infrared data notification format (unclosed quotes): {notification}")
 
-        ir_data = remaining[quote_pos + 1 : end_quote_pos]
+        # The data may arrive over several lines; normalise it to single-space-separated words
+        ir_data = " ".join(remaining[quote_pos + 1 : end_quote_pos].split())
 
         return cls(device=device, ir_data=ir_data)
 
@@ -199,7 +201,8 @@ class NotificationSerialinfo:
         """Parse endpoint RS-232 data notification
 
         Args:
-            notification: The notification string to parse
+            notification: The full notification text: the header line and the data lines that follow it, joined
+                with "\\n". Hex data is returned as single-space-separated bytes; ASCII data as received.
 
         Returns:
             NotificationSerialinfo: Parsed notification object
@@ -263,13 +266,16 @@ class NotificationSerialinfo:
 
         device = header_parts[0]
         data_format = header_parts[1]
-        data_length = int(header_parts[2])
+        try:
+            data_length = int(header_parts[2])
+        except ValueError as e:
+            raise ResponseError(f"Invalid serial data length in notification header: {header}") from e
 
         if data_format not in ["hex", "ascii"]:
             raise ResponseError(f"Invalid serial data format: {data_format}")
 
-        # Remove leading CR/LF from data
-        serial_data = data_part.lstrip("\r\n")
+        # Hex bytes may arrive over several lines, so normalise them; for ASCII only drop the CR/LF ending the header
+        serial_data = " ".join(data_part.split()) if data_format == "hex" else data_part.lstrip("\r\n")
 
         # Cast data_format to the correct Literal type after validation
         validated_format = cast(Literal["hex", "ascii"], data_format)
@@ -324,7 +330,7 @@ class NotificationVideo:
             notify video lost source1
         """
         parts = notification.strip().split()
-        if len(parts) < 3 or parts[0] != "notify" or parts[1] != "video":
+        if len(parts) < 4 or parts[0] != "notify" or parts[1] != "video":
             raise ResponseError(f"Invalid video status notification format: {notification}")
 
         status = parts[2]
@@ -397,6 +403,17 @@ class NotificationSink:
         return cls(status=validated_status, device=device)
 
 
+NotificationObject = (
+    NotificationEndpoint
+    | NotificationCecinfo
+    | NotificationIrinfo
+    | NotificationSerialinfo
+    | NotificationVideo
+    | NotificationSink
+)
+"""Any parsed notification, as passed to notification callbacks."""
+
+
 class NotificationParser:
     """Utility class to parse any NetworkHD API notification"""
 
@@ -450,16 +467,7 @@ class NotificationParser:
         raise ResponseError(f"Unknown notification type: {notification}")
 
     @staticmethod
-    def parse_notification(
-        notification: str,
-    ) -> (
-        NotificationEndpoint
-        | NotificationCecinfo
-        | NotificationIrinfo
-        | NotificationSerialinfo
-        | NotificationVideo
-        | NotificationSink
-    ):
+    def parse_notification(notification: str) -> NotificationObject:
         """Parse any NetworkHD API notification and return the appropriate notification object
 
         Args:
@@ -480,13 +488,3 @@ class NotificationParser:
                 return notification_class.parse(notification)  # type: ignore[no-any-return]
 
         raise ResponseError(f"Unknown notification type: {notification}")
-
-
-# Type alias for all notification objects (defined after all classes)
-# Extract classes dynamically from the NotificationParser mappings
-def _get_notification_types():
-    """Get all notification types dynamically from the parser mappings."""
-    return tuple(info["class"] for info in NotificationParser._NOTIFICATION_MAPPINGS.values())
-
-
-NotificationObject = _get_notification_types()

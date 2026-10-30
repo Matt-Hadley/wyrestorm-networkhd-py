@@ -1,9 +1,13 @@
+from typing import get_args
+
 import pytest
 
+from wyrestorm_networkhd.exceptions import ResponseError
 from wyrestorm_networkhd.models.api_notifications import (
     NotificationCecinfo,
     NotificationEndpoint,
     NotificationIrinfo,
+    NotificationObject,
     NotificationParser,
     NotificationSerialinfo,
     NotificationSink,
@@ -650,3 +654,105 @@ class TestNotificationParser:
         """Test getting notification type for whitespace-only string."""
         with pytest.raises(ValueError, match="Unknown notification type: "):
             NotificationParser.get_notification_type("   ")
+
+
+class TestMultiLineNotifications:
+    """Notifications whose data spans several lines, as assembled by the client (lines joined with "\\n")."""
+
+    # NetworkHD API v6.7, 12.2 Endpoint Notifications (PDF pages 41-42)
+    SPEC_HEX_LINES = [
+        "4c 6f 72 65 6d 20 69 70 73 75 6d 20 64 6f 6c 6f 72 20 73 69 74",
+        "20 61 6d 65 74 2c 20 63 6f 6e 73 65 63 74 65 74 75 72 20 61 64",
+        "69 70 69 73 63 69 6e 67 20 65 6c 69 74 2c 20 73 65 64 20 64 6f",
+        "20 65 69 75 73 6d 6f 64 20 74 65 6d 70 6f 72 20 69 6e 63 69 64",
+        "69 64 75 6e 74 20 75 74 20 6c 61 62 6f 72 65 20 65 74 20 64 6f",
+        "6c 6f 72 65 20 6d 61 67 6e 61 20 61 6c 69 71 75 61 0D 0A",
+    ]
+
+    def test_serialinfo_hex_spec_example(self):
+        # Arrange
+        notification = "\n".join(["notify serialinfo display1 hex 371:", *self.SPEC_HEX_LINES])
+
+        # Act
+        result = NotificationParser.parse_notification(notification)
+
+        # Assert
+        assert isinstance(result, NotificationSerialinfo)
+        assert result.device == "display1"
+        assert result.data_length == 371
+        assert result.serial_data == " ".join(self.SPEC_HEX_LINES)
+        assert len(result.serial_data) == result.data_length
+        assert bytes.fromhex(result.serial_data).startswith(b"Lorem ipsum")
+
+    def test_serialinfo_ascii_spec_example(self):
+        # Arrange
+        data = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua"
+        notification = f"notify serialinfo display1 ascii 122:\r\n{data}"
+
+        # Act
+        result = NotificationSerialinfo.parse(notification)
+
+        # Assert
+        assert result.data_format == "ascii"
+        assert result.serial_data == data
+        assert len(result.serial_data) == result.data_length
+
+    def test_serialinfo_ascii_keeps_line_breaks_in_data(self):
+        # Arrange
+        notification = "notify serialinfo display1 ascii 9:\nline1\nl2"
+
+        # Act
+        result = NotificationSerialinfo.parse(notification)
+
+        # Assert
+        assert result.serial_data == "line1\nl2"
+
+    def test_serialinfo_invalid_length_raises_response_error(self):
+        # Arrange
+        notification = "notify serialinfo display1 hex abc:\n41"
+
+        # Act & Assert
+        with pytest.raises(ResponseError, match="length"):
+            NotificationSerialinfo.parse(notification)
+
+    def test_irinfo_spec_example_over_several_lines(self):
+        # Arrange
+        notification = (
+            'notify irinfo display1 "0000 0067 0000 0015 0060 0018 0030 0018\n'
+            "0018 0018 0030 0018 0018 0018 0030 0018 0018 0018 0018 0018 0018\n"
+            "0018 0030 0018 0018 0018 0030 0018 0030 0018 0018 0018 0030 0018\n"
+            '0018 0018 0018 0018 0018 0018 0030 0018 0030 0018 0030 01FE"'
+        )
+
+        # Act
+        result = NotificationParser.parse_notification(notification)
+
+        # Assert
+        assert isinstance(result, NotificationIrinfo)
+        assert result.device == "display1"
+        assert "\n" not in result.ir_data
+        assert result.ir_data.startswith("0000 0067 0000 0015 0060 0018 0030 0018 0018 0018")
+        assert result.ir_data.endswith("0030 01FE")
+        assert len(result.ir_data.split()) == 46
+
+
+class TestNotificationVideoShortForms:
+    """Video notifications missing their device."""
+
+    @pytest.mark.parametrize("notification", ["notify video lost", "notify video found"])
+    def test_missing_device_raises_response_error(self, notification):
+        # Act & Assert
+        with pytest.raises(ResponseError, match="Invalid video status notification format"):
+            NotificationVideo.parse(notification)
+
+
+class TestNotificationObject:
+    """NotificationObject is a union of all notification classes."""
+
+    def test_union_covers_every_parser_class(self):
+        # Arrange
+        classes = {info["class"] for info in NotificationParser._NOTIFICATION_MAPPINGS.values()}
+
+        # Act & Assert
+        assert set(get_args(NotificationObject)) == classes
+        assert isinstance(NotificationParser.parse_notification("notify sink lost display1"), NotificationObject)
