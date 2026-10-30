@@ -24,6 +24,7 @@ from ..models.api_query import (
     VideoWallSceneList,
     VideowallWithinWallSceneList,
 )
+from ._response_helpers import strip_echo
 
 if TYPE_CHECKING:
     from ..core._client import _BaseNetworkHDClient
@@ -276,7 +277,7 @@ class APIQueryCommands:
 
         if device:
             # Single device query
-            return EndpointAliasHostname.parse_single(response)
+            return EndpointAliasHostname.parse_single(strip_echo(response, command))
         else:
             # Multiple devices query
             return EndpointAliasHostname.parse_multiple(response)

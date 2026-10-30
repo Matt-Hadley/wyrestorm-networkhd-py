@@ -11,8 +11,25 @@ from typing import Any
 from ..exceptions import CommandError, ResponseError
 
 
+def strip_echo(response: str, command: str) -> str:
+    """Drop the line echoing the command from the start of a response
+
+    Args:
+        response: The raw response string from the device
+        command: The command that was sent
+
+    Returns:
+        str: The response after the echo line, or the response unchanged if it does not start with the echo
+
+    Notes:
+        Real controllers echo every command as the first line of their reply; parsers expect the reply without it.
+    """
+    first_line, _, rest = response.strip().partition("\n")
+    return rest if first_line.strip() == command.strip() else response
+
+
 def require_command_mirror(response: str, expected: str) -> bool:
-    """Validate that the response echoed the command
+    """Validate that the response mirrored the command
 
     Args:
         response: The raw response string from the device
@@ -25,15 +42,12 @@ def require_command_mirror(response: str, expected: str) -> bool:
         ResponseError: If response does not match expected echo
 
     Notes:
-        Succeeds if the entire response equals the expected echo OR the first
-        non-empty line equals the expected echo.
+        Succeeds if the response is exactly the expected echo, optionally followed by one identical mirror line.
+        Anything else (such as an error message after the echo) fails.
     """
-    stripped = response.strip()
     expected_stripped = expected.strip()
-    if stripped == expected_stripped:
-        return True
-    first_line = stripped.splitlines()[0] if stripped else ""
-    if first_line.strip() == expected_stripped:
+    lines = [line.strip() for line in response.strip().splitlines()]
+    if lines in ([expected_stripped], [expected_stripped, expected_stripped]):
         return True
     raise ResponseError(f"Unexpected response. Expected echo of: '{expected}', got: '{response}'")
 

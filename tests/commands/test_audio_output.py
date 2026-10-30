@@ -1,8 +1,8 @@
-from unittest.mock import AsyncMock, Mock
-
 import pytest
 
+from tests.commands import echoing_client
 from wyrestorm_networkhd.commands.audio_output import AudioOutputCommands
+from wyrestorm_networkhd.exceptions import ResponseError
 
 
 class TestAudioOutputCommands:
@@ -10,8 +10,7 @@ class TestAudioOutputCommands:
 
     def setup_method(self):
         """Set up mock client for each test."""
-        self.mock_client = Mock()
-        self.mock_client.send_command = AsyncMock()
+        self.mock_client = echoing_client()
         self.commands = AudioOutputCommands(self.mock_client)
 
     # =============================================================================
@@ -88,7 +87,7 @@ class TestAudioOutputCommands:
 
     @pytest.mark.asyncio
     async def test_set_device_audio_volume_analog_with_multiline_response(self):
-        """Test setting analog audio volume with multiline response."""
+        """Test setting analog audio volume with multiline response is rejected."""
         # Arrange
         level = "up"
         device = "TX1"
@@ -96,12 +95,11 @@ class TestAudioOutputCommands:
         expected_response = "config set device audio volume up analog TX1\nVolume adjusted successfully"
         self.mock_client.send_command.return_value = expected_response
 
-        # Act
-        result = await self.commands.config_set_device_audio_volume_analog(level, device)
+        # Act / Assert: anything after the mirror means the device did not just accept the command
+        with pytest.raises(ResponseError):
+            await self.commands.config_set_device_audio_volume_analog(level, device)
 
-        # Assert
         self.mock_client.send_command.assert_called_once_with(expected_command)
-        assert result is True
 
     @pytest.mark.asyncio
     async def test_set_device_audio_volume_analog_with_whitespace_response(self):
