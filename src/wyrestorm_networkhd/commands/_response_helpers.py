@@ -5,9 +5,6 @@ from NetworkHD API commands. These utilities ensure consistent error handling
 and response validation across all command implementations.
 """
 
-import json
-from typing import Any
-
 from ..exceptions import CommandError, ResponseError
 
 
@@ -101,31 +98,3 @@ def require_success_indicator(response: str, expected_start: str | None = None) 
     if "success" in lower:
         return True
     raise ResponseError(f"Response missing success/failure indicator: '{response}'")
-
-
-def parse_json_response(response: str, prefix: str) -> dict[str, Any]:
-    """Helper function for parsing JSON responses from API commands
-
-    Args:
-        response: The raw response string from the device
-        prefix: The expected prefix before the JSON data (e.g., "device json string:")
-
-    Returns:
-        dict[str, Any]: The parsed JSON data as a dictionary
-
-    Raises:
-        ResponseError: If the response format is invalid or contains invalid JSON
-
-    Notes:
-        Extracts JSON data that appears after the specified prefix in the response.
-        Handles both valid JSON parsing and format validation.
-    """
-    if prefix not in response:
-        raise ResponseError(f"Invalid response format, expected '{prefix}': {response}")
-
-    json_part = response.split(prefix)[1].strip()
-    try:
-        parsed_data: dict[str, Any] = json.loads(json_part)
-        return parsed_data
-    except json.JSONDecodeError as e:
-        raise ResponseError(f"Invalid JSON in response: {e}") from e

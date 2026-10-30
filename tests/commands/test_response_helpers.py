@@ -3,7 +3,6 @@
 import pytest
 
 from wyrestorm_networkhd.commands._response_helpers import (
-    parse_json_response,
     require_command_mirror,
     require_contains,
     require_success_indicator,
@@ -260,62 +259,3 @@ class TestRequireSuccessIndicator:
         result = require_success_indicator(response, expected_start)
 
         assert result is True
-
-
-# =============================================================================
-# parse_json_response Tests
-# =============================================================================
-
-
-class TestParseJsonResponse:
-    """Test the parse_json_response function."""
-
-    def test_parse_json_response_success(self):
-        """Test successful JSON parsing."""
-        response = 'device json string: {"devices": [{"name": "source1", "type": "tx", "status": "online"}]}'
-        result = parse_json_response(response, "device json string:")
-
-        assert result == {"devices": [{"name": "source1", "type": "tx", "status": "online"}]}
-
-    def test_parse_json_response_missing_prefix(self):
-        """Test JSON parsing with missing prefix."""
-        response = "No prefix here"
-
-        with pytest.raises(ValueError, match="Invalid response format"):
-            parse_json_response(response, "device json string:")
-
-    def test_parse_json_response_invalid_json(self):
-        """Test JSON parsing with invalid JSON."""
-        response = "device json string: {invalid json"
-
-        with pytest.raises(ValueError, match="Invalid JSON in response"):
-            parse_json_response(response, "device json string:")
-
-    def test_parse_json_response_with_whitespace(self):
-        """Test JSON parsing with extra whitespace."""
-        response = '  device json string:  {"devices": [{"name": "source1"}]}  '
-        result = parse_json_response(response, "device json string:")
-
-        assert result == {"devices": [{"name": "source1"}]}
-
-    def test_parse_json_response_complex_json(self):
-        """Test JSON parsing with complex nested JSON."""
-        response = """device json string: {
-            "devices": [
-                {
-                    "name": "TX1",
-                    "type": "transmitter",
-                    "status": "online",
-                    "settings": {
-                        "resolution": "1920x1080",
-                        "fps": 60
-                    }
-                }
-            ]
-        }"""
-        result = parse_json_response(response, "device json string:")
-
-        assert result["devices"][0]["name"] == "TX1"
-        assert result["devices"][0]["type"] == "transmitter"
-        assert result["devices"][0]["settings"]["resolution"] == "1920x1080"
-        assert result["devices"][0]["settings"]["fps"] == 60
