@@ -2,7 +2,12 @@
 
 This module defines custom exception classes for the NetworkHD API client.
 These exceptions provide detailed error information and help with debugging.
+
+``ConnectionError`` and ``TimeoutError`` shadow the builtins of the same name but also subclass them, so
+``except builtins.ConnectionError`` / ``except builtins.TimeoutError`` still catch them.
 """
+
+import builtins
 
 
 class NetworkHDError(Exception):
@@ -16,13 +21,13 @@ class NetworkHDError(Exception):
 # ============================================================================
 
 
-class ConnectionError(NetworkHDError):
-    """Exception raised when connection fails"""
+class ConnectionError(NetworkHDError, builtins.ConnectionError):
+    """Exception raised when connection fails or the client is not connected"""
 
     pass
 
 
-class ConnectionLostError(NetworkHDError):
+class ConnectionLostError(ConnectionError):
     """Exception raised when connection is unexpectedly lost"""
 
     def __init__(self, host: str, reason: str | None = None):
@@ -34,7 +39,7 @@ class ConnectionLostError(NetworkHDError):
         super().__init__(message)
 
 
-class ReconnectionError(NetworkHDError):
+class ReconnectionError(ConnectionError):
     """Exception raised when reconnection attempts fail"""
 
     def __init__(self, host: str, attempts: int, last_error: str):
@@ -42,6 +47,20 @@ class ReconnectionError(NetworkHDError):
         self.attempts = attempts
         self.last_error = last_error
         super().__init__(f"Failed to reconnect to '{host}' after {attempts} attempts. Last error: {last_error}")
+
+
+class HostKeyMismatchError(ConnectionError):
+    """Exception raised when the SSH server's host key matches none of the pinned fingerprints.
+
+    Raised before authentication, so the password is never sent to that server.
+    """
+
+    def __init__(self, host: str, presented_fingerprint: str):
+        self.host = host
+        self.presented_fingerprint = presented_fingerprint
+        super().__init__(
+            f"SSH host key of '{host}' is {presented_fingerprint}, which does not match the configured fingerprint(s)"
+        )
 
 
 class AuthenticationError(NetworkHDError):
@@ -53,8 +72,8 @@ class AuthenticationError(NetworkHDError):
         super().__init__(f"Authentication failed for user '{username}' on '{host}'")
 
 
-class TimeoutError(NetworkHDError):
-    """Exception raised when operations timeout"""
+class TimeoutError(NetworkHDError, builtins.TimeoutError):
+    """Exception raised when operations timeout, e.g. no response to a command"""
 
     def __init__(self, operation: str, timeout: float):
         self.operation = operation
@@ -73,14 +92,14 @@ class CommandError(NetworkHDError):
     pass
 
 
-class ResponseError(NetworkHDError):
+class ResponseError(NetworkHDError, ValueError):
     """Exception raised when response parsing fails"""
 
     pass
 
 
-class UnknownCommandError(NetworkHDError):
-    """Exception raised when command is not recognized"""
+class UnknownCommandError(CommandError):
+    """Exception raised when the device answers "unknown command" (unknown command or incorrect parameters)"""
 
     def __init__(self, command: str):
         self.command = command

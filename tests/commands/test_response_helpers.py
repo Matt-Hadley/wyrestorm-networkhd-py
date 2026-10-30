@@ -3,12 +3,32 @@
 import pytest
 
 from wyrestorm_networkhd.commands._response_helpers import (
-    parse_json_response,
     require_command_mirror,
     require_contains,
     require_success_indicator,
+    strip_echo,
 )
 from wyrestorm_networkhd.exceptions import CommandError, ResponseError
+
+# =============================================================================
+# strip_echo Tests
+# =============================================================================
+
+
+class TestStripEcho:
+    """Test the strip_echo function."""
+
+    def test_strip_echo_drops_echo_line(self):
+        assert strip_echo("scene active VW-S1\nscene VW-S1 active success", "scene active VW-S1") == (
+            "scene VW-S1 active success"
+        )
+
+    def test_strip_echo_echo_only(self):
+        assert strip_echo("matrix set TX1 RX1", "matrix set TX1 RX1") == ""
+
+    def test_strip_echo_without_echo_unchanged(self):
+        assert strip_echo("scene VW-S1 active success", "scene active VW-S1") == "scene VW-S1 active success"
+
 
 # =============================================================================
 # require_command_mirror Tests
@@ -36,23 +56,32 @@ class TestRequireCommandMirror:
 
         assert result is True
 
-    def test_require_command_mirror_first_line_match(self):
-        """Test command mirror validation with first line match."""
+    def test_require_command_mirror_echo_then_mirror(self):
+        """The echo followed by one identical mirror line is accepted."""
+        result = require_command_mirror("matrix set TX1 RX1\nmatrix set TX1 RX1", "matrix set TX1 RX1")
+
+        assert result is True
+
+    def test_require_command_mirror_rejects_error_after_echo(self):
+        """An error message after the echo fails."""
+        with pytest.raises(ResponseError):
+            require_command_mirror("matrix set TX1 RX1\nTX1 does not exist.", "matrix set TX1 RX1")
+
+    def test_require_command_mirror_rejects_extra_line(self):
+        """Test command mirror validation with extra line after the echo."""
         response = "config set session alias on\nSome additional output"
         expected = "config set session alias on"
 
-        result = require_command_mirror(response, expected)
+        with pytest.raises(ResponseError):
+            require_command_mirror(response, expected)
 
-        assert result is True
-
-    def test_require_command_mirror_first_line_match_with_whitespace(self):
-        """Test command mirror validation with first line match and whitespace."""
+    def test_require_command_mirror_rejects_extra_line_with_whitespace(self):
+        """Test command mirror validation with extra line after the echo and whitespace."""
         response = "  config set session alias off  \nAdditional line"
         expected = "config set session alias off"
 
-        result = require_command_mirror(response, expected)
-
-        assert result is True
+        with pytest.raises(ResponseError):
+            require_command_mirror(response, expected)
 
     def test_require_command_mirror_no_match(self):
         """Test command mirror validation failure."""
@@ -230,62 +259,3 @@ class TestRequireSuccessIndicator:
         result = require_success_indicator(response, expected_start)
 
         assert result is True
-
-
-# =============================================================================
-# parse_json_response Tests
-# =============================================================================
-
-
-class TestParseJsonResponse:
-    """Test the parse_json_response function."""
-
-    def test_parse_json_response_success(self):
-        """Test successful JSON parsing."""
-        response = 'device json string: {"devices": [{"name": "source1", "type": "tx", "status": "online"}]}'
-        result = parse_json_response(response, "device json string:")
-
-        assert result == {"devices": [{"name": "source1", "type": "tx", "status": "online"}]}
-
-    def test_parse_json_response_missing_prefix(self):
-        """Test JSON parsing with missing prefix."""
-        response = "No prefix here"
-
-        with pytest.raises(ValueError, match="Invalid response format"):
-            parse_json_response(response, "device json string:")
-
-    def test_parse_json_response_invalid_json(self):
-        """Test JSON parsing with invalid JSON."""
-        response = "device json string: {invalid json"
-
-        with pytest.raises(ValueError, match="Invalid JSON in response"):
-            parse_json_response(response, "device json string:")
-
-    def test_parse_json_response_with_whitespace(self):
-        """Test JSON parsing with extra whitespace."""
-        response = '  device json string:  {"devices": [{"name": "source1"}]}  '
-        result = parse_json_response(response, "device json string:")
-
-        assert result == {"devices": [{"name": "source1"}]}
-
-    def test_parse_json_response_complex_json(self):
-        """Test JSON parsing with complex nested JSON."""
-        response = """device json string: {
-            "devices": [
-                {
-                    "name": "TX1",
-                    "type": "transmitter",
-                    "status": "online",
-                    "settings": {
-                        "resolution": "1920x1080",
-                        "fps": 60
-                    }
-                }
-            ]
-        }"""
-        result = parse_json_response(response, "device json string:")
-
-        assert result["devices"][0]["name"] == "TX1"
-        assert result["devices"][0]["type"] == "transmitter"
-        assert result["devices"][0]["settings"]["resolution"] == "1920x1080"
-        assert result["devices"][0]["settings"]["fps"] == 60

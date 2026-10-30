@@ -1,5 +1,69 @@
 # Changelog
 
+## [3.1.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.0.1...v3.1.0) (2026-10-30)
+
+
+### Features
+
+* **core:** optional SSH host key pinning ([a8aaae6](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/a8aaae62d77d12656fb4d6a094bc5d67753e7e00))
+* optional SSH host key pinning; bound serialinfo framing ([e338451](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/e33845140fd793103dd43806e45a5ac943210a48))
+
+
+### Bug Fixes
+
+* **core:** cap serialinfo length and bound the reader buffer ([dd95508](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/dd95508f14eaaf7990d52a96954a843a34018c11))
+* **core:** dispatch serialinfo as soon as its data is in ([c41f5ad](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/c41f5ad450daf446111f762569aaf5cc7176bede))
+* **core:** record host key fingerprint only once the shell is open ([9c89533](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/9c8953389eb05f43e88d2c10f7e263cfccfb3556))
+
+
+### Documentation
+
+* describe pinning an existing SSH client after trust on first use ([536e5d0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/536e5d049703fd6475ba3d99e87678127af7f635))
+* document SSH host key pinning and trust on first use ([1285276](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/12852762e0faaf97d027b019df4e1920ca1af622))
+
+## [3.0.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.0.0...v3.0.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* 3.0.1 — echo handling, truncated replies and connection lifecycle ([68d5b21](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/68d5b21d550a04ff59435cd4233bc3496958a767))
+* **commands:** drop the command echo before parsing replies ([6b620dc](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/6b620dcd2561c5eaef925a88bfe3a0b77f3e6795))
+* **core:** harden the reader, timeouts and connection lifecycle ([576ab4e](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/576ab4e766d19edf1629d7cd2d00c9adcf986cde))
+* **models:** skip unparseable devices in multi-device lists ([2ba6b8e](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/2ba6b8edb27bef437132ead75679776f9d464814))
+
+
+### Documentation
+
+* correct NHDAPI registration and document 3.0.1 behaviour changes ([51f14b3](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/51f14b3fd61ee9881b09bc59d336ac0c77c8b637))
+
+## [3.0.0](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.2.1...v3.0.0) (2026-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** send_command raises TimeoutError instead of returning "" and UnknownCommandError for "unknown command"; responses start at the command echo; response_line_timeout defaults to 0.3 s instead of 1 s; reconnect() raises ReconnectionError and no longer returns silently while connecting; heartbeat_interval and circuit_breaker_timeout are ignored with a DeprecationWarning (removed in 4.0); notification_handler.handle_notification is now synchronous.
+* **core:** ConnectionLostError/ReconnectionError/UnknownCommandError have new base classes, and parse_json_response raises ResponseError (a ValueError subclass once ResponseError gains that base).
+* **models:** DeviceInfo.parse and DeviceStatus.parse no longer raise DeviceQueryError when one of several devices is an error entry; that device is left out of the returned list. Unknown JSON keys are ignored instead of raising TypeError, invalid values raise ResponseError, and a required DeviceInfo "aliasname" of "null" stays the string "null".
+
+### Features
+
+* **core:** make library exceptions subclass the matching builtins ([0887aaa](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/0887aaa76001733120dfb3740e86e24ea34bff91))
+* **core:** rework transport, framing and reconnect ([2e8b8ba](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/2e8b8ba41ad9f1dc188ffec1f69d6439e23a1559))
+
+
+### Bug Fixes
+
+* **core:** annotate RS232 serial_kwargs so the docs build passes --strict ([0976d82](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/0976d821d31a8109c650137710f21cd0491fc009))
+* **core:** stop configuring logging on import ([edb3d3f](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/edb3d3fa0829b54484197042354fc67aa9e5bf92))
+* **models:** handle short video and multi-line serial/IR notifications ([edd87fb](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/edd87fb8c6d536589f60bd6dd4aceae984116e26))
+* **models:** parse device JSON robustly and raise ResponseError from parsers ([c73167f](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/c73167ff3bd75b00da8220d52803658b4fb3a8ce))
+
+
+### Documentation
+
+* correct CONTRIBUTING for 3.0 ([86a629b](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/86a629bd656d29991e5771320d8361c9193586f9))
+* update README and docs for 3.0 and add a migration guide ([97969e7](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/97969e7c6c2bad185093ae9dc4a7fbb8edc5ba7d))
+
 ## [2.2.1](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v2.2.0...v2.2.1) (2025-09-01)
 
 

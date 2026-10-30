@@ -1,8 +1,13 @@
+from typing import TYPE_CHECKING
+
 from ._response_helpers import require_contains
+
+if TYPE_CHECKING:
+    from ..core._client import _BaseNetworkHDClient
 
 
 class RebootResetCommands:
-    def __init__(self, client):
+    def __init__(self, client: "_BaseNetworkHDClient") -> None:
         self.client = client
 
     # =============================================================

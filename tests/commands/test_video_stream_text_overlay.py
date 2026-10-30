@@ -1,7 +1,6 @@
-from unittest.mock import AsyncMock, Mock
-
 import pytest
 
+from tests.commands import echoing_client
 from wyrestorm_networkhd.commands.video_stream_text_overlay import VideoStreamTextOverlayCommands
 
 
@@ -10,8 +9,7 @@ class TestVideoStreamTextOverlayCommands:
 
     def setup_method(self):
         """Set up mock client for each test."""
-        self.mock_client = Mock()
-        self.mock_client.send_command = AsyncMock()
+        self.mock_client = echoing_client()
         self.commands = VideoStreamTextOverlayCommands(self.mock_client)
 
     # =============================================================================

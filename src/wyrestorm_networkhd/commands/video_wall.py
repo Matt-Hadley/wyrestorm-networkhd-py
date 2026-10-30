@@ -1,10 +1,13 @@
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from ._response_helpers import require_success_indicator
+from ._response_helpers import require_success_indicator, strip_echo
+
+if TYPE_CHECKING:
+    from ..core._client import _BaseNetworkHDClient
 
 
 class VideoWallCommands:
-    def __init__(self, client):
+    def __init__(self, client: "_BaseNetworkHDClient") -> None:
         self.client = client
 
     # =============================================================
@@ -54,7 +57,9 @@ class VideoWallCommands:
         """
         command = f"scene active {videowall}-{scene}"
         response = await self.client.send_command(command)
-        return require_success_indicator(response, expected_start=f"scene {videowall}-{scene} active")
+        return require_success_indicator(
+            strip_echo(response, command), expected_start=f"scene {videowall}-{scene} active"
+        )
 
     async def scene_set(self, videowall: str, scene: str, x: int, y: int, tx: str) -> bool:
         """Change the encoder assigned to a single decoder in a 'standard video wall' Scene
@@ -102,7 +107,9 @@ class VideoWallCommands:
         command = f"scene set {videowall}-{scene} {x} {y} {tx}"
         response = await self.client.send_command(command)
         # Consider success if the response matches the expected statement exactly
-        success: bool = response.strip() == f"scene {videowall}-{scene}'s source in [{x},{y}] change to {tx}"
+        success: bool = (
+            strip_echo(response, command).strip() == f"scene {videowall}-{scene}'s source in [{x},{y}] change to {tx}"
+        )
         return success
 
     async def vw_change(self, videowall: str, scene: str, lscreen: str, tx: str) -> bool:
@@ -147,7 +154,10 @@ class VideoWallCommands:
         """
         command = f"vw change {videowall}-{scene}_{lscreen} {tx}"
         response = await self.client.send_command(command)
-        success: bool = response.strip() == f"videowall change {videowall}-{scene}_{lscreen} tx connect to {tx}"
+        success: bool = (
+            strip_echo(response, command).strip()
+            == f"videowall change {videowall}-{scene}_{lscreen} tx connect to {tx}"
+        )
         return success
 
     # =============================================================
@@ -197,7 +207,9 @@ class VideoWallCommands:
         """
         command = f"wscene2 active {videowall}-{wscene}"
         response = await self.client.send_command(command)
-        return require_success_indicator(response, expected_start=f"wscene2 active {videowall}-{wscene}")
+        return require_success_indicator(
+            strip_echo(response, command), expected_start=f"wscene2 active {videowall}-{wscene}"
+        )
 
     async def wscene2_window_open(
         self, videowall: str, wscene: str, wname: str, x: int, y: int, h: int, v: int, tx: str
@@ -254,7 +266,8 @@ class VideoWallCommands:
         command = f"wscene2 window open {videowall}-{wscene} {wname} {x} {y} {h} {v} {tx}"
         response = await self.client.send_command(command)
         return require_success_indicator(
-            response, expected_start=f"wscene2 window open {videowall}-{wscene} {wname} {x} {y} {h} {v} {tx}"
+            strip_echo(response, command),
+            expected_start=f"wscene2 window open {videowall}-{wscene} {wname} {x} {y} {h} {v} {tx}",
         )
 
     async def wscene2_window_close(self, videowall: str, wscene: str, wname: str) -> bool:
@@ -296,7 +309,9 @@ class VideoWallCommands:
         """
         command = f"wscene2 window close {videowall}-{wscene} {wname}"
         response = await self.client.send_command(command)
-        return require_success_indicator(response, expected_start=f"wscene2 window close {videowall}-{wscene} {wname}")
+        return require_success_indicator(
+            strip_echo(response, command), expected_start=f"wscene2 window close {videowall}-{wscene} {wname}"
+        )
 
     async def wscene2_window_change(self, videowall: str, wscene: str, wname: str, tx: str) -> bool:
         """Change the TX for an open window within a 'video wall within a wall' Scene
@@ -341,7 +356,7 @@ class VideoWallCommands:
         command = f"wscene2 window change {videowall}-{wscene} {wname} {tx}"
         response = await self.client.send_command(command)
         return require_success_indicator(
-            response, expected_start=f"wscene2 window change {videowall}-{wscene} {wname} {tx}"
+            strip_echo(response, command), expected_start=f"wscene2 window change {videowall}-{wscene} {wname} {tx}"
         )
 
     async def wscene2_window_adjust(
@@ -396,7 +411,8 @@ class VideoWallCommands:
         command = f"wscene2 window adjust {videowall}-{wscene} {wname} {x} {y} {h} {v}"
         response = await self.client.send_command(command)
         return require_success_indicator(
-            response, expected_start=f"wscene2 window adjust {videowall}-{wscene} {wname} {x} {y} {h} {v}"
+            strip_echo(response, command),
+            expected_start=f"wscene2 window adjust {videowall}-{wscene} {wname} {x} {y} {h} {v}",
         )
 
     async def wscene2_window_move(
@@ -452,5 +468,5 @@ class VideoWallCommands:
         command = f"wscene2 window move {videowall}-{wscene} {wname} {layer}"
         response = await self.client.send_command(command)
         return require_success_indicator(
-            response, expected_start=f"wscene2 window move {videowall}-{wscene} {wname} {layer}"
+            strip_echo(response, command), expected_start=f"wscene2 window move {videowall}-{wscene} {wname} {layer}"
         )

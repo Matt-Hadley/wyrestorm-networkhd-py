@@ -1,16 +1,113 @@
 """SSH client for NetworkHD devices with simplified architecture."""
 
 import asyncio
+import base64
 import contextlib
+import hashlib
+import re
+from collections.abc import Callable, Sequence
+from typing import Any, TypeVar
 
 import paramiko
 
-from ..exceptions import AuthenticationError, ConnectionError
-from ..logging_config import get_logger
-from ._client import _BaseNetworkHDClient, _ConnectionState
+from ..exceptions import AuthenticationError, ConnectionError, HostKeyMismatchError
+from ._client import _BaseNetworkHDClient
+
+# Seconds between SSH keepalive packets, so a dead link is noticed and NAT/firewall state is kept
+_KEEPALIVE_INTERVAL = 30
+
+# Most bytes returned by one _read_available() call
+_MAX_READ = 65536
+
+_T = TypeVar("_T")
+
+
+async def _in_thread(func: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
+    """Run a blocking call in a thread; if cancelled, wait for it to finish so its result can still be closed."""
+    future = asyncio.ensure_future(asyncio.to_thread(func, *args, **kwargs))
+    try:
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
+        with contextlib.suppress(Exception):
+            await future
+        raise
+
 
 # Type alias for SSH host key policies
 HostKeyPolicy = str  # 'auto_add', 'reject', or 'warn'
+
+# Fingerprints in a string are separated by commas or whitespace (spaces, newlines)
+_FINGERPRINT_SEPARATORS = re.compile(r"[,\s]+")
+
+
+def _parse_sha256(token: str) -> str | None:
+    """Return "SHA256:<base64>" for a base64 SHA-256 digest (with or without "=" padding), else None."""
+    b64 = token.rstrip("=")
+    if len(b64) != 43:
+        return None
+    try:
+        digest = base64.b64decode(b64 + "=", validate=True)
+    except ValueError:  # binascii.Error is a ValueError
+        return None
+    return f"SHA256:{b64}" if len(digest) == 32 else None
+
+
+def normalize_fingerprints(value: str | Sequence[str]) -> tuple[str, ...]:
+    """Parse SSH host key SHA256 fingerprints into canonical form.
+
+    Accepts "SHA256:<base64>" or bare "<base64>", with or without "=" padding. A string may hold several,
+    separated by commas, whitespace or newlines, and may be the output of ``ssh-keygen -lf`` (e.g.
+    ``256 SHA256:... [host]:10022 (ECDSA)``): other words on such lines are ignored.
+
+    Args:
+        value: A string, or a sequence of strings, holding one or more fingerprints.
+
+    Returns:
+        The fingerprints as "SHA256:<base64 without padding>", duplicates removed, in input order.
+
+    Raises:
+        ValueError: If no fingerprint is found, a "SHA256:" token is not a valid SHA-256 digest, or an item
+            is not a string.
+    """
+    items = [value] if isinstance(value, str) else list(value)
+    found: dict[str, None] = {}
+    for item in items:
+        if not isinstance(item, str):
+            raise ValueError(f"Host key fingerprint must be a string, not {type(item).__name__}")
+        for token in _FINGERPRINT_SEPARATORS.split(item):
+            explicit = token[:7].upper() == "SHA256:"
+            fingerprint = _parse_sha256(token[7:] if explicit else token)
+            if fingerprint is not None:
+                found[fingerprint] = None
+            elif explicit:
+                raise ValueError(f"Invalid SHA256 host key fingerprint: {token!r}")
+    if not found:
+        raise ValueError("No SHA256 host key fingerprint found")
+    return tuple(found)
+
+
+def _fingerprint(key: paramiko.PKey) -> str:
+    """The key's SHA256 fingerprint as OpenSSH prints it: unpadded base64 of the SHA-256 of the key blob."""
+    return "SHA256:" + base64.b64encode(hashlib.sha256(key.asbytes()).digest()).decode().rstrip("=")
+
+
+class _HostKeyPolicy(paramiko.MissingHostKeyPolicy):
+    """Records the presented host key's fingerprint, then checks it against the pins or defers to ``fallback``.
+
+    paramiko calls this before authenticating (no known_hosts is loaded, so every key is "missing").
+    """
+
+    def __init__(self, pins: tuple[str, ...] | None, fallback: paramiko.MissingHostKeyPolicy):
+        self.pins = pins
+        self.fallback = fallback
+        self.presented: str | None = None
+
+    def missing_host_key(self, client: paramiko.SSHClient, hostname: str, key: paramiko.PKey) -> None:
+        self.presented = _fingerprint(key)
+        if self.pins is None:
+            self.fallback.missing_host_key(client, hostname, key)
+        elif self.presented not in self.pins:
+            raise HostKeyMismatchError(hostname, self.presented)
 
 
 class NetworkHDClientSSH(_BaseNetworkHDClient):
@@ -33,9 +130,10 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
         ssh_host_key_policy: HostKeyPolicy,
         timeout: float = 10.0,
         *,
-        circuit_breaker_timeout: float = 30.0,
-        heartbeat_interval: float = 30.0,
+        circuit_breaker_timeout: float | None = None,
+        heartbeat_interval: float | None = None,
         message_dispatcher_interval: float = 0.1,
+        host_key_fingerprints: str | Sequence[str] | None = None,
     ):
         """Initialize SSH client.
 
@@ -47,16 +145,24 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
             ssh_host_key_policy: SSH host key verification policy.
                 Must be one of: 'auto_add', 'reject', or 'warn'.
             timeout: Connection timeout in seconds (default: 10.0).
-            circuit_breaker_timeout: Time in seconds after which the circuit breaker
-                will automatically reset after being opened (default: 30.0).
-            heartbeat_interval: Interval in seconds between heartbeat checks (default: 30.0).
+            circuit_breaker_timeout: Deprecated and ignored (emits DeprecationWarning); removed in 4.0.
+            heartbeat_interval: Deprecated and ignored (emits DeprecationWarning); removed in 4.0. SSH
+                keepalive packets are sent every 30 s instead.
             message_dispatcher_interval: Sleep interval in seconds for the message
-                dispatcher loop to prevent busy waiting (default: 0.1).
+                dispatcher loop when nothing is readable (default: 0.1).
+            host_key_fingerprints: SHA256 fingerprint(s) of the controller's SSH host key, in any form
+                `normalize_fingerprints` accepts. When given, only a matching host key is accepted, checked before
+                the password is sent, and `ssh_host_key_policy` is ignored; a mismatch raises
+                HostKeyMismatchError. None (default) leaves host key checking to `ssh_host_key_policy`.
+                Also a settable attribute, read at every connect: assign a tuple from `normalize_fingerprints` (or
+                None) on an existing client, e.g. after trusting `host_key_fingerprint` on first use, and the next
+                connect or reconnect is checked against it.
 
         Raises:
             ValueError: If required parameters are missing or invalid.
         """
         super().__init__(
+            message_dispatcher_interval=message_dispatcher_interval,
             circuit_breaker_timeout=circuit_breaker_timeout,
             heartbeat_interval=heartbeat_interval,
         )
@@ -76,8 +182,6 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
             raise ValueError(
                 f"Invalid ssh_host_key_policy: {ssh_host_key_policy}. Must be one of: auto_add, reject, warn"
             )
-        if message_dispatcher_interval <= 0:
-            raise ValueError("Message dispatcher interval must be positive")
 
         # Store connection parameters
         self.host = host
@@ -86,46 +190,48 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
         self.password = password
         self.timeout = timeout
         self.ssh_host_key_policy = ssh_host_key_policy
-        self.message_dispatcher_interval = message_dispatcher_interval
+        self.host_key_fingerprints = (
+            None if host_key_fingerprints is None else normalize_fingerprints(host_key_fingerprints)
+        )
+        self._host_key_fingerprint: str | None = None
 
         # SSH connection objects
         self.client: paramiko.SSHClient | None = None
         self.shell: paramiko.Channel | None = None
 
-        # Message handling
-        self._message_dispatcher_task: asyncio.Task | None = None
-        self._dispatcher_enabled = False
-
-        # Set up logger for this client instance
-        self.logger = get_logger(f"{__name__}.NetworkHDClientSSH")
-
     # ============================================================================
-    # PUBLIC METHODS - Connection Management
+    # PROTECTED METHODS - SSH Implementation
     # ============================================================================
 
-    async def connect(self) -> None:
-        """Establish SSH connection to the NetworkHD device.
+    @property
+    def host_key_fingerprint(self) -> str | None:
+        """SHA256 fingerprint ("SHA256:<base64>") of the host key presented on the last successful connect.
+
+        Set whether or not fingerprints are pinned; None before the first successful connect. Pass it as
+        ``host_key_fingerprints`` on later connections to trust the controller on first use.
+        """
+        return self._host_key_fingerprint
+
+    @property
+    def _target(self) -> str:
+        return f"{self.host}:{self.port}"
+
+    async def _open_transport(self) -> None:
+        """Open the SSH connection and interactive shell; blocking paramiko calls run in a thread.
 
         Raises:
-            ConnectionError: If the connection fails.
             AuthenticationError: If authentication fails.
+            HostKeyMismatchError: If the host key matches none of the pinned fingerprints.
+            ConnectionError: On SSH protocol errors.
         """
-        # Check circuit breaker
-        if self._is_circuit_open():
-            raise ConnectionError("Circuit breaker is open - connection attempts are blocked")
-
+        if self.host_key_fingerprints is not None:
+            self.logger.debug("Host key fingerprints are pinned; ssh_host_key_policy is ignored")
+        policy = _HostKeyPolicy(self.host_key_fingerprints, self._get_host_key_policy())
+        self.client = paramiko.SSHClient()
+        self.client.set_missing_host_key_policy(policy)
         try:
-            self._set_connection_state("connecting")
-            self.logger.info(f"Connecting to {self.host}:{self.port}")
-
-            # Implementation of abstract connect method
-
-            # Single connection mode
-            self.client = paramiko.SSHClient()
-            self.client.set_missing_host_key_policy(self._get_host_key_policy())
-
-            # Connect to the device
-            self.client.connect(
+            await _in_thread(
+                self.client.connect,
                 hostname=self.host,
                 port=self.port,
                 username=self.username,
@@ -134,119 +240,51 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
                 look_for_keys=False,
                 allow_agent=False,
             )
-
-            # Open interactive shell
-            self.shell = self.client.invoke_shell()
-            self.shell.settimeout(self.timeout)
-
-            # Start message dispatcher
-            await self._start_message_dispatcher()
-
-            self._set_connection_state("connected")
-            self.logger.info(f"Successfully connected to {self.host}:{self.port}")
-
         except paramiko.AuthenticationException as e:
-            error_msg = f"Authentication failed: {e}"
-            self._set_connection_state("error", error_msg)
             raise AuthenticationError(self.username, self.host) from e
         except paramiko.SSHException as e:
-            error_msg = f"SSH error: {e}"
-            self._set_connection_state("error", error_msg)
-            raise ConnectionError(error_msg) from e
-        except Exception as e:
-            error_msg = f"Connection failed: {e}"
-            self._set_connection_state("error", error_msg)
-            raise ConnectionError(error_msg) from e
+            raise ConnectionError(f"SSH error: {e}") from e
 
-    async def disconnect(self) -> None:
-        """Disconnect from the NetworkHD device.
+        transport = self.client.get_transport()
+        if transport is not None:
+            transport.set_keepalive(_KEEPALIVE_INTERVAL)
+        shell = await _in_thread(self.client.invoke_shell)
+        shell.settimeout(self.timeout)
+        self.shell = shell
+        self._host_key_fingerprint = policy.presented
 
-        Closes the SSH connection and stops the message dispatcher.
-        """
+    async def _close_transport(self) -> None:
+        shell, client = self.shell, self.client
+        self.shell = self.client = None
         try:
-            self.logger.info(f"Disconnecting from {self.host}:{self.port}")
+            if shell is not None:
+                await asyncio.to_thread(shell.close)
+        finally:
+            if client is not None:
+                await asyncio.to_thread(client.close)
 
-            # Stop message dispatcher
-            await self._stop_message_dispatcher()
+    def _transport_alive(self) -> bool:
+        if self.client is None or self.shell is None or self.shell.closed:
+            return False
+        transport = self.client.get_transport()
+        return transport is not None and transport.is_active()
 
-            # Close SSH connection
-            if self.shell:
-                self.shell.close()
-                self.shell = None
+    async def _write(self, command: str) -> None:
+        if self.shell is None:
+            raise ConnectionError("SSH shell not available")
+        await asyncio.to_thread(self.shell.sendall, (command + "\n").encode())
 
-            if self.client:
-                self.client.close()
-                self.client = None
-
-            self._set_connection_state("disconnected")
-            self.logger.info(f"Disconnected from {self.host}:{self.port}")
-
-        except Exception as e:
-            error_msg = f"Disconnect error: {e}"
-            self._set_connection_state("error", error_msg)
-            raise
-
-    def is_connected(self) -> bool:
-        """Check if connected to the device via SSH.
-
-        Returns:
-            True if connected, False otherwise.
-        """
-        connected = (
-            self.client is not None
-            and self.shell is not None
-            and not self.shell.closed
-            and self.client.get_transport() is not None
-            and self.client.get_transport().is_active()
-        )
-
-        if not connected and self._connection_state == _ConnectionState.CONNECTED:
-            self._set_connection_state("disconnected")
-
-        return connected
-
-    async def send_command(
-        self, command: str, response_timeout: float = 10.0, response_line_timeout: float = 1.0
-    ) -> str:
-        """Send a command to the device via SSH and get the response.
-
-        Args:
-            command: The command string to send.
-            response_timeout: Maximum time to wait for response in seconds.
-            response_line_timeout: Maximum time to wait for each response line in seconds.
-
-        Returns:
-            The response string from the device.
-
-        Raises:
-            ConnectionError: If not connected to the device.
-            CommandError: If the command fails or times out.
-
-        """
-        if not self.is_connected():
-            raise ConnectionError("Not connected")
-
-        # Use the base class's generic command infrastructure
-        def send_func(cmd: str) -> None:
-            if not self.shell:
-                raise ConnectionError("SSH shell not available")
-            self.shell.send(cmd + "\n")
-            self.logger.debug(f"Sending command via SSH: {cmd}")
-
-        def receive_func() -> str | None:
-            # This will be called by the message dispatcher
-            return None
-
-        response = await self._send_command_generic(
-            command.strip(), send_func, receive_func, response_timeout, response_line_timeout
-        )
-
-        self.logger.debug(f"Raw response: {response}")
-        return response
-
-    # ============================================================================
-    # PROTECTED METHODS - SSH Implementation
-    # ============================================================================
+    async def _read_available(self) -> bytes:
+        if self.shell is None:
+            raise ConnectionError("SSH shell not available")
+        data = b""
+        # Bounded so a flooding device can't grow one read without limit; the rest is read on the next call
+        while len(data) < _MAX_READ and self.shell.recv_ready():
+            chunk = self.shell.recv(4096)
+            if not chunk:
+                raise ConnectionError("SSH channel closed")
+            data += chunk
+        return data
 
     def _get_host_key_policy(
         self,
@@ -262,124 +300,3 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
             "warn": paramiko.WarningPolicy(),
         }
         return policy_map[self.ssh_host_key_policy]
-
-    async def _start_message_dispatcher(self) -> None:
-        """Start the message dispatcher task.
-
-        Creates an asyncio task to handle incoming SSH messages and route them
-        to either notification handlers or command response queues.
-        """
-        if self._dispatcher_enabled:
-            return
-
-        self._dispatcher_enabled = True
-        self._message_dispatcher_task = asyncio.create_task(self._message_dispatcher())
-        self.logger.debug("Message dispatcher started")
-
-    async def _stop_message_dispatcher(self) -> None:
-        """Stop the message dispatcher task.
-
-        Cancels the dispatcher task and waits for it to complete cleanup.
-        """
-        if not self._dispatcher_enabled:
-            return
-
-        self._dispatcher_enabled = False
-        if self._message_dispatcher_task:
-            self._message_dispatcher_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._message_dispatcher_task
-            self._message_dispatcher_task = None
-        self.logger.debug("Message dispatcher stopped")
-
-    async def _message_dispatcher(self) -> None:
-        """Message dispatcher that separates notifications from command responses.
-
-        Continuously reads from the SSH shell and routes incoming messages to
-        either notification handlers or command response queues based on message
-        content.
-        """
-        if not self.shell:
-            return
-
-        buffer = ""
-        while self._dispatcher_enabled and self.is_connected():
-            try:
-                # Read data from SSH shell
-                if self.shell.recv_ready():
-                    chunk = self.shell.recv(1024).decode("utf-8", errors="ignore")
-                    buffer += chunk
-
-                    # Process complete lines
-                    while "\n" in buffer:
-                        line, buffer = buffer.split("\n", 1)
-                        line = line.strip()
-
-                        if not line:
-                            continue
-
-                        # Debug: log what we're receiving
-                        self.logger.debug(f"Message dispatcher received line: {repr(line)}")
-
-                        # Check if this is a notification
-                        if line.startswith("notify "):
-                            # This is a notification - handle it
-                            await self.notification_handler.handle_notification(line)
-                            # Record notification for metrics
-                            self._record_notification_received()
-                        else:
-                            # This is likely a command response - send to oldest pending command
-                            await self._handle_command_response(line)
-
-                # Small delay to prevent busy waiting
-                await asyncio.sleep(self.message_dispatcher_interval)
-
-            except Exception as e:
-                if self._dispatcher_enabled:
-                    self.logger.error(f"Error in message dispatcher: {e}")
-                break
-
-        self.logger.debug("Message dispatcher stopped")
-
-    async def _handle_command_response(self, response_line: str) -> None:
-        """Send response line to the first available pending command.
-
-        Args:
-            response_line: The response line to route to a waiting command.
-        """
-        # Use the base class's pending commands
-        if not self._pending_commands:
-            # No commands waiting - this might be unsolicited output
-            self.logger.debug(f"Received unsolicited output: {response_line}")
-            return
-
-        # Send to the first pending command (FIFO order)
-        command_id = next(iter(self._pending_commands))
-        queue = self._pending_commands[command_id]
-
-        self.logger.debug(f"Routing response '{response_line}' to command {command_id}")
-
-        try:
-            queue.put_nowait(response_line)
-        except asyncio.QueueFull:
-            self.logger.warning(f"Response queue full for command {command_id}")
-
-    # ============================================================================
-    # CONTEXT MANAGER METHODS
-    # ============================================================================
-
-    async def __aenter__(self):
-        """Async context manager entry.
-
-        Returns:
-            Self after establishing connection.
-        """
-        await self.connect()
-        return self
-
-    async def __aexit__(self, _exc_type, _exc_val, _exc_tb):
-        """Async context manager exit.
-
-        Ensures proper cleanup of SSH connection and message dispatcher.
-        """
-        await self.disconnect()
