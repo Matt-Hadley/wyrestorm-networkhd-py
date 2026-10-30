@@ -322,7 +322,7 @@ clean-test: ## Remove test artifacts
 
 clean-cache: ## Remove tool cache files
 	$(ECHO) "$(YELLOW)Cleaning tool caches...$(NC)"
-	$(Q)rm -rf .ruff_cache/ .mypy_cache/ .claude/
+	$(Q)rm -rf .ruff_cache/ .mypy_cache/
 	@echo "$(GREEN)✓$(NC) Tool caches cleaned"
 
 # =============================================================================
