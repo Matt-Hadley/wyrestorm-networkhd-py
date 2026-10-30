@@ -345,11 +345,9 @@ commands when testing against a live system.
 
 **DO NOT** create public issues for security vulnerabilities.
 
-Instead, please email: 81762940+Matt-Hadley@users.noreply.github.com
-
-- Subject: `[SECURITY] WyreStorm NetworkHD - [Brief Description]`
-- Include detailed reproduction steps
-- Provide suggested fixes if possible
+Instead, report them through
+[GitHub private vulnerability reporting](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/security/advisories/new)
+with reproduction steps and, if you have one, a suggested fix. See [SECURITY.md](SECURITY.md).
 
 ## 📚 Documentation
 
