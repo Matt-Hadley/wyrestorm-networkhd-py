@@ -13,6 +13,9 @@ from ._client import _BaseNetworkHDClient
 # Seconds between SSH keepalive packets, so a dead link is noticed and NAT/firewall state is kept
 _KEEPALIVE_INTERVAL = 30
 
+# Most bytes returned by one _read_available() call
+_MAX_READ = 65536
+
 _T = TypeVar("_T")
 
 
@@ -173,7 +176,8 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
         if self.shell is None:
             raise ConnectionError("SSH shell not available")
         data = b""
-        while self.shell.recv_ready():
+        # Bounded so a flooding device can't grow one read without limit; the rest is read on the next call
+        while len(data) < _MAX_READ and self.shell.recv_ready():
             chunk = self.shell.recv(4096)
             if not chunk:
                 raise ConnectionError("SSH channel closed")
