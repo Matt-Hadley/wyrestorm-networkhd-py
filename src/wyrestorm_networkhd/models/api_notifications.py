@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from ..exceptions import ResponseError
+
 # =============================================================
 # 12.2 Endpoint Notifications
 # Use this command for notifications that originate from an endpoint. Where available, endpoints will use API notifications to signal
@@ -28,7 +30,7 @@ class NotificationEndpoint:
             NotificationEndpoint: Parsed notification object
 
         Raises:
-            ValueError: If notification format is invalid
+            ResponseError: If notification format is invalid
 
         Command applies to:
             NHD-110-TX/RX, NHD-100-TX, NHD-140-TX, NHD-100-RX, NHD-200-TX, NHD-200-RX, NHD-210-RX, NHD-220-RX, NHD-250-RX
@@ -51,7 +53,7 @@ class NotificationEndpoint:
         """
         parts = notification.strip().split()
         if len(parts) != 4 or parts[0] != "notify" or parts[1] != "endpoint":
-            raise ValueError(f"Invalid endpoint status notification format: {notification}")
+            raise ResponseError(f"Invalid endpoint status notification format: {notification}")
 
         status_indicator = parts[2]
         device = parts[3]
@@ -61,7 +63,7 @@ class NotificationEndpoint:
         elif status_indicator == "-" or status_indicator == "–":  # Handle both minus and em dash
             return cls(online=False, device=device)
         else:
-            raise ValueError(f"Invalid endpoint status indicator in notification: {notification}")
+            raise ResponseError(f"Invalid endpoint status indicator in notification: {notification}")
 
 
 @dataclass
@@ -82,7 +84,7 @@ class NotificationCecinfo:
             NotificationCecinfo: Parsed notification object
 
         Raises:
-            ValueError: If notification format is invalid
+            ResponseError: If notification format is invalid
 
         Command applies to:
             NHD-400-TX, NHD-400-RX, NHD-500-TX, NHD-500-RX
@@ -101,7 +103,7 @@ class NotificationCecinfo:
         """
         # Handle quoted CEC data
         if "notify cecinfo " not in notification or '"' not in notification:
-            raise ValueError(f"Invalid CEC data notification format: {notification}")
+            raise ResponseError(f"Invalid CEC data notification format: {notification}")
 
         prefix = "notify cecinfo "
         remaining = notification[len(prefix) :]
@@ -113,7 +115,7 @@ class NotificationCecinfo:
         # Extract CEC data from quotes
         end_quote_pos = remaining.rfind('"')
         if end_quote_pos <= quote_pos:
-            raise ValueError(f"Invalid CEC data notification format (unclosed quotes): {notification}")
+            raise ResponseError(f"Invalid CEC data notification format (unclosed quotes): {notification}")
 
         cec_data = remaining[quote_pos + 1 : end_quote_pos]
 
@@ -138,7 +140,7 @@ class NotificationIrinfo:
             NotificationIrinfo: Parsed notification object
 
         Raises:
-            ValueError: If notification format is invalid
+            ResponseError: If notification format is invalid
 
         Command applies to:
             NHD-600-TX, NHD-600-RX, NHD-600-TRX, NHD-600-TRXF, NHD-610-RX, NHD-610-TX
@@ -164,7 +166,7 @@ class NotificationIrinfo:
         """
         # Handle quoted IR data
         if "notify irinfo " not in notification or '"' not in notification:
-            raise ValueError(f"Invalid infrared data notification format: {notification}")
+            raise ResponseError(f"Invalid infrared data notification format: {notification}")
 
         prefix = "notify irinfo "
         remaining = notification[len(prefix) :]
@@ -176,7 +178,7 @@ class NotificationIrinfo:
         # Extract IR data from quotes
         end_quote_pos = remaining.rfind('"')
         if end_quote_pos <= quote_pos:
-            raise ValueError(f"Invalid infrared data notification format (unclosed quotes): {notification}")
+            raise ResponseError(f"Invalid infrared data notification format (unclosed quotes): {notification}")
 
         ir_data = remaining[quote_pos + 1 : end_quote_pos]
 
@@ -203,7 +205,7 @@ class NotificationSerialinfo:
             NotificationSerialinfo: Parsed notification object
 
         Raises:
-            ValueError: If notification format is invalid
+            ResponseError: If notification format is invalid
 
         Command applies to:
             NHD-110-TX/RX, NHD-100-TX, NHD-100-RX, NHD-200-TX, NHD-200-RX, NHD-210-RX, NHD-220-RX, NHD-250-RX
@@ -244,27 +246,27 @@ class NotificationSerialinfo:
             eiusmod tempor incididunt ut labore et dolore magna aliqua
         """
         if not notification.startswith("notify serialinfo "):
-            raise ValueError(f"Invalid serial data notification format: {notification}")
+            raise ResponseError(f"Invalid serial data notification format: {notification}")
 
         # Remove prefix
         remaining = notification[len("notify serialinfo ") :]
 
         # Split on colon to separate header from data
         if ":" not in remaining:
-            raise ValueError(f"Invalid serial data notification format (no colon): {notification}")
+            raise ResponseError(f"Invalid serial data notification format (no colon): {notification}")
 
         header, data_part = remaining.split(":", 1)
         header_parts = header.strip().split()
 
         if len(header_parts) != 3:
-            raise ValueError(f"Invalid serial data notification header: {header}")
+            raise ResponseError(f"Invalid serial data notification header: {header}")
 
         device = header_parts[0]
         data_format = header_parts[1]
         data_length = int(header_parts[2])
 
         if data_format not in ["hex", "ascii"]:
-            raise ValueError(f"Invalid serial data format: {data_format}")
+            raise ResponseError(f"Invalid serial data format: {data_format}")
 
         # Remove leading CR/LF from data
         serial_data = data_part.lstrip("\r\n")
@@ -293,7 +295,7 @@ class NotificationVideo:
             NotificationVideo: Parsed notification object
 
         Raises:
-            ValueError: If notification format is invalid
+            ResponseError: If notification format is invalid
 
         Command applies to:
             NHD-400-TX, NHD-400-RX, NHD-500-TX, NHD-500-RX
@@ -323,13 +325,13 @@ class NotificationVideo:
         """
         parts = notification.strip().split()
         if len(parts) < 3 or parts[0] != "notify" or parts[1] != "video":
-            raise ValueError(f"Invalid video status notification format: {notification}")
+            raise ResponseError(f"Invalid video status notification format: {notification}")
 
         status = parts[2]
         device = parts[3]
 
         if status not in ["lost", "found"]:
-            raise ValueError(f"Invalid video status: {status}")
+            raise ResponseError(f"Invalid video status: {status}")
 
         # Check for source device (RX found notifications)
         source_device = None
@@ -359,7 +361,7 @@ class NotificationSink:
             NotificationSink: Parsed notification object
 
         Raises:
-            ValueError: If notification format is invalid
+            ResponseError: If notification format is invalid
 
         Command applies to:
             NHD-110-RX, NHD-100-RX, NHD-200-RX, NHD-210-RX, NHD-220-RX, NHD-250-RX
@@ -382,13 +384,13 @@ class NotificationSink:
         """
         parts = notification.strip().split()
         if len(parts) != 4 or parts[0] != "notify" or parts[1] != "sink":
-            raise ValueError(f"Invalid sink power status notification format: {notification}")
+            raise ResponseError(f"Invalid sink power status notification format: {notification}")
 
         status = parts[2]
         device = parts[3]
 
         if status not in ["lost", "found"]:
-            raise ValueError(f"Invalid sink power status: {status}")
+            raise ResponseError(f"Invalid sink power status: {status}")
 
         # Cast status to the correct Literal type after validation
         validated_status = cast(Literal["lost", "found"], status)
@@ -437,7 +439,7 @@ class NotificationParser:
             The notification type string used for callback registration
 
         Raises:
-            ValueError: If notification type is unknown
+            ResponseError: If notification type is unknown
         """
         notification = notification.strip()
 
@@ -445,7 +447,7 @@ class NotificationParser:
             if notification.startswith(prefix):
                 return str(info["type"])
 
-        raise ValueError(f"Unknown notification type: {notification}")
+        raise ResponseError(f"Unknown notification type: {notification}")
 
     @staticmethod
     def parse_notification(
@@ -467,7 +469,7 @@ class NotificationParser:
             Union of notification objects: Parsed notification object
 
         Raises:
-            ValueError: If notification type is unknown or format is invalid
+            ResponseError: If notification type is unknown or format is invalid
         """
         notification = notification.strip()
 
@@ -477,7 +479,7 @@ class NotificationParser:
                 # Type checker can't know the specific class type from the dict
                 return notification_class.parse(notification)  # type: ignore[no-any-return]
 
-        raise ValueError(f"Unknown notification type: {notification}")
+        raise ResponseError(f"Unknown notification type: {notification}")
 
 
 # Type alias for all notification objects (defined after all classes)

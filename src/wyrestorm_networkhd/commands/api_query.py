@@ -1,3 +1,4 @@
+from ..exceptions import ResponseError
 from ..models.api_query import (
     CustomMultiviewLayoutList,
     DeviceInfo,
@@ -143,7 +144,7 @@ class APIQueryCommands:
             list[str]: List of device names (aliases or hostnames)
 
         Raises:
-            ValueError: If devicelist response format is invalid
+            ResponseError: If devicelist response format is invalid
 
         Command applies to:
             NHD-110-TX/RX, NHD-100-TX, NHD-140-TX, NHD-100-RX, NHD-200-TX, NHD-200-RX, NHD-210-RX, NHD-220-RX, NHD-250-RX
@@ -175,7 +176,7 @@ class APIQueryCommands:
 
         # Parse the response directly
         if "devicelist is" not in response:
-            raise ValueError(f"Invalid devicelist response format: {response}")
+            raise ResponseError(f"Invalid devicelist response format: {response}")
 
         # Extract devices after "devicelist is"
         devices_part = response.split("devicelist is")[1].strip()
