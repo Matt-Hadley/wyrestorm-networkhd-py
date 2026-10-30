@@ -178,7 +178,8 @@ except ConnectionLostError:
 
 `reconnect()` also works from any other state, for example after `disconnect()`. It waits `delay` seconds before the
 second attempt and doubles it each time, capped at 30 seconds, with jitter. It raises `ReconnectionError` when every
-attempt fails, and `AuthenticationError` at once if the credentials are rejected.
+attempt fails, and `AuthenticationError` or `HostKeyMismatchError` at once if the credentials or the host key are
+rejected.
 
 ### SSH Host Keys
 
@@ -190,8 +191,43 @@ attempt fails, and `AuthenticationError` at once if the credentials are rejected
 - `"reject"` refuses any host key that is not already known. The library doesn't load a `known_hosts` file, so in 3.0
   `"reject"` refuses every controller.
 
-If someone on your LAN intercepting the connection is a concern, keep the controller's control interface on an isolated
-network or VLAN, or use RS232.
+To protect against that, pin the controller's host key with `host_key_fingerprints` (3.1+). The key is checked before
+the password is sent, and `ssh_host_key_policy` is then ignored:
+
+```python
+client = NetworkHDClientSSH(
+    host="192.168.1.100",
+    port=10022,
+    username="wyrestorm",
+    password="networkhd",
+    ssh_host_key_policy="reject",  # ignored while fingerprints are pinned
+    host_key_fingerprints="SHA256:<base64 from ssh-keygen>",
+)
+```
+
+Get the fingerprints from a machine you trust on the same network:
+
+```bash
+ssh-keyscan -p 10022 192.168.1.100 | ssh-keygen -lf -
+```
+
+Controllers typically offer an ECDSA and an RSA key, and paramiko negotiates ECDSA, so pass both lines or at least the
+ECDSA one. `host_key_fingerprints` takes one string or a list of strings; each may hold several fingerprints separated
+by commas, spaces or newlines, as `SHA256:<base64>` or bare base64, with or without `=` padding. The `ssh-keygen -lf`
+output can be pasted as is: everything but the `SHA256:` tokens is ignored. A value with no fingerprint in it raises
+`ValueError`; `wyrestorm_networkhd.normalize_fingerprints()` applies the same rules, so you can validate user input with
+it.
+
+If the controller presents any other key, `connect()` raises `HostKeyMismatchError` (a `ConnectionError`) carrying the
+key it saw in `presented_fingerprint`, and `reconnect()` doesn't retry it.
+
+**Trust on first use.** After every successful connect, `client.host_key_fingerprint` holds the fingerprint of the key
+the controller presented, pinned or not (`None` before the first connect). To trust a controller on first use, connect
+once without pinning, store `client.host_key_fingerprint`, and pass it as `host_key_fingerprints` from then on. After a
+`HostKeyMismatchError`, update the stored value only if you know why the key changed, for example after the controller
+was replaced or reset.
+
+If you can't pin the key, keep the controller's control interface on an isolated network or VLAN, or use RS232.
 
 ## 💻 Usage Examples
 
@@ -263,7 +299,8 @@ Register callbacks with `client.register_notification_callback(type, callback)`,
 are `"endpoint"`, `"cecinfo"`, `"irinfo"`, `"serialinfo"`, `"video"` and `"sink"`; each callback receives the parsed
 notification model (see [Models](reference/models.md)). Coroutine callbacks are scheduled as tasks. Exceptions raised by
 callbacks are logged and don't affect the connection. Multi-line `serialinfo` and `irinfo` notifications are assembled
-before your callback sees them.
+before your callback sees them. A `serialinfo` whose length is over 65536 or doesn't match its data, and any line or
+`irinfo` over 64 KiB, is dropped with a warning in the log.
 
 CEC notifications from NHD-400/500 endpoints can be switched on or off:
 

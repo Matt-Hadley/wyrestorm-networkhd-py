@@ -67,7 +67,8 @@ asyncio.run(main())
 ```
 
 This only reads from the controller. The [documentation](https://matt-hadley.github.io/wyrestorm-networkhd-py/) covers
-switching, video walls, multiview, notifications, RS232 and the SSH host key policies (`"warn"` accepts any host key).
+switching, video walls, multiview, notifications, RS232 and SSH host keys: `"warn"` accepts any host key unless you pin
+the controller's with `host_key_fingerprints` (get it with `ssh-keyscan -p 10022 <host> | ssh-keygen -lf -`).
 
 ## License
 

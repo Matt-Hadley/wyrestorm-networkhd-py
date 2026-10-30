@@ -47,8 +47,22 @@ changed. `reconnect()` doesn't retry this error.
 ### `ConnectionError: SSH error: Server '...' not found in known_hosts`
 
 You used `ssh_host_key_policy="reject"`. The library doesn't load a `known_hosts` file, so `"reject"` refuses every
-controller. Use `"warn"` or `"auto_add"`, both of which accept any host key; see [SSH Host Keys](index.md#ssh-host-keys)
-for what that means.
+controller. Pin the controller's key with `host_key_fingerprints`, or use `"warn"` or `"auto_add"`, both of which accept
+any host key; see [SSH Host Keys](index.md#ssh-host-keys).
+
+### `HostKeyMismatchError: SSH host key of '...' is SHA256:..., which does not match ...`
+
+You pinned `host_key_fingerprints` and the controller presented a different key, so the connection was closed before the
+password was sent; `reconnect()` doesn't retry. Either the controller was replaced or reset (its key changes), or
+something on the network is impersonating it. Check the key from a machine you trust with
+`ssh-keyscan -p 10022 <host> | ssh-keygen -lf -`, and update the pin to the new value (also in
+`e.presented_fingerprint`) only if you know why it changed. See [SSH Host Keys](index.md#ssh-host-keys).
+
+### `ValueError: No SHA256 host key fingerprint found`
+
+`host_key_fingerprints` held nothing that looks like a SHA256 fingerprint (43 base64 characters, optionally after
+`SHA256:`). MD5 fingerprints (`MD5:aa:bb:...`) aren't accepted. Paste the output of
+`ssh-keyscan -p 10022 <host> | ssh-keygen -lf -`.
 
 ### `ValueError: Invalid ssh_host_key_policy`
 
@@ -132,18 +146,19 @@ connection. Turn on logging to see them. Notifications that can't be parsed are 
 
 Everything below is importable from `wyrestorm_networkhd` and subclasses `NetworkHDError`.
 
-| Exception             | Also a                     | Raised when                                                      |
-| --------------------- | -------------------------- | ---------------------------------------------------------------- |
-| `ConnectionError`     | `builtins.ConnectionError` | Connecting fails, or a command is sent while not connected       |
-| `ConnectionLostError` | `ConnectionError`          | A command is sent, or was waiting, after the link dropped        |
-| `ReconnectionError`   | `ConnectionError`          | Every `reconnect()` attempt failed (`attempts`, `last_error`)    |
-| `AuthenticationError` |                            | The controller rejected the SSH credentials                      |
-| `TimeoutError`        | `builtins.TimeoutError`    | The reply didn't finish within `response_timeout`                |
-| `CommandError`        |                            | The controller answered `ERROR`, or the command contained CR/LF  |
-| `UnknownCommandError` | `CommandError`             | The controller answered `unknown command`                        |
-| `ResponseError`       | `ValueError`               | A reply couldn't be parsed or wasn't the expected acknowledgment |
-| `DeviceQueryError`    |                            | A device query returned only an error entry for the device       |
-| `DeviceNotFoundError` |                            | `config_get_name()` was asked for a device that doesn't exist    |
+| Exception              | Also a                     | Raised when                                                      |
+| ---------------------- | -------------------------- | ---------------------------------------------------------------- |
+| `ConnectionError`      | `builtins.ConnectionError` | Connecting fails, or a command is sent while not connected       |
+| `ConnectionLostError`  | `ConnectionError`          | A command is sent, or was waiting, after the link dropped        |
+| `ReconnectionError`    | `ConnectionError`          | Every `reconnect()` attempt failed (`attempts`, `last_error`)    |
+| `HostKeyMismatchError` | `ConnectionError`          | The SSH host key matched none of `host_key_fingerprints`         |
+| `AuthenticationError`  |                            | The controller rejected the SSH credentials                      |
+| `TimeoutError`         | `builtins.TimeoutError`    | The reply didn't finish within `response_timeout`                |
+| `CommandError`         |                            | The controller answered `ERROR`, or the command contained CR/LF  |
+| `UnknownCommandError`  | `CommandError`             | The controller answered `unknown command`                        |
+| `ResponseError`        | `ValueError`               | A reply couldn't be parsed or wasn't the expected acknowledgment |
+| `DeviceQueryError`     |                            | A device query returned only an error entry for the device       |
+| `DeviceNotFoundError`  |                            | `config_get_name()` was asked for a device that doesn't exist    |
 
 ## 📞 Getting Help
 
