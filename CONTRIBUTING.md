@@ -67,10 +67,10 @@ make dev-workflow
 make format           # Format code with Ruff and Prettier
 make lint            # Run linting checks
 make test            # Run all tests
-make test-fast       # Run all tests except integration and performance
+make test-fast       # Run all tests without coverage reports
 make test-cov        # Run tests with coverage report
 make check           # Run all quality checks
-make build           # Build and validate package
+make build           # Build and validate sdist and wheel
 
 # Comprehensive validation (before commits/releases)
 make health-check    # Full project validation
@@ -78,25 +78,6 @@ make pre-commit      # Run pre-commit hooks
 
 # See all available commands
 make help
-```
-
-### Test Categories
-
-Tests are organized into categories using pytest markers:
-
-```bash
-# Everything except integration and performance tests (what dev-workflow runs)
-make test-fast
-# or: pytest -m "not integration and not performance"
-
-# Integration tests (mocked clients, no hardware needed)
-pytest -m "integration"
-
-# Performance tests (slow, benchmark-focused)
-pytest -m "performance"
-
-# All tests
-make test
 ```
 
 ### Code Quality Standards
