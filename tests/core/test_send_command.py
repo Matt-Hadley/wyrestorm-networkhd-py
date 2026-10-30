@@ -6,7 +6,9 @@ import threading
 
 import pytest
 
+from wyrestorm_networkhd.core._client import _is_foreign_echo
 from wyrestorm_networkhd.exceptions import CommandError, ConnectionError, TimeoutError, UnknownCommandError
+from wyrestorm_networkhd.models.api_query import DeviceStatus, Matrix
 
 from .conftest import FAST, make_ssh_client
 
@@ -168,3 +170,91 @@ async def test_sendall_runs_in_a_worker_thread(ssh_client, device):
     await ssh_client.send_command("cmd", **FAST)
 
     assert threads and threads[0] != threading.get_ident()
+
+
+# The controller echoes every API session's commands and replies to all sessions. These replay another client's
+# `config get version` / `config get devicejsonstring` traffic (seen on an NHD-000-CTL, firmware 9.4.13) around ours.
+STATUS_REPLY = (
+    "config get device status\r\n"
+    'devices status info:\r\n{\r\n"devices status" : [\r\n{"aliasname" : "DISPLAY1", "name" : "NHD-RX-1"}\r\n]\r\n}\r\n'
+)
+FOREIGN_JSON = (
+    "config get devicejsonstring\r\n"
+    'devices json info:\r\n{\r\n"devices" : [\r\n{"aliasname" : "SOURCE1", "name" : "NHD-TX-1"}\r\n]\r\n}\r\n'
+)
+FOREIGN_VERSION = "config get version\r\nAPI version: v1.21\r\nSystem version: v9.4.13(v2.0.0)\r\n"
+
+
+async def test_foreign_session_burst_after_our_reply_is_dropped(ssh_client, device):
+    device.reply("config get device status", STATUS_REPLY + FOREIGN_VERSION + FOREIGN_JSON)
+    device.reply("matrix get", "matrix get\r\nmatrix information:\r\nsource1 display1\r\n")
+
+    response = await ssh_client.send_command("config get device status", **FAST)
+
+    assert response == STATUS_REPLY.replace("\r\n", "\n").strip()
+    assert [d.aliasname for d in DeviceStatus.parse(response)] == ["DISPLAY1"]
+    # Nothing of the foreign burst reaches the next command
+    assert await ssh_client.send_command("matrix get", **FAST) == "matrix get\nmatrix information:\nsource1 display1"
+
+
+@pytest.mark.parametrize("gap", [0.0, 0.1], ids=["back-to-back", "idle-gap-before-our-echo"])
+async def test_foreign_session_burst_before_our_echo_is_dropped(ssh_client, device, gap):
+    # With a gap longer than response_line_timeout, the foreign burst alone used to be taken as the response
+    device.reply("config get device status", FOREIGN_JSON, STATUS_REPLY, delay=gap)
+
+    response = await ssh_client.send_command("config get device status", **FAST)
+
+    assert [d.aliasname for d in DeviceStatus.parse(response)] == ["DISPLAY1"]
+
+
+async def test_foreign_echo_without_ours_times_out(ssh_client, device):
+    device.reply("config get device status", FOREIGN_JSON)
+
+    with pytest.raises(TimeoutError):
+        await ssh_client.send_command("config get device status", **FAST)
+
+
+async def test_foreign_burst_during_matrix_get(ssh_client, device):
+    device.reply(
+        "matrix get", "matrix get\r\nmatrix information:\r\nsource1 display1\r\nNULL display2\r\n" + FOREIGN_VERSION
+    )
+
+    matrix = Matrix.parse(await ssh_client.send_command("matrix get", **FAST))
+
+    assert [(a.tx, a.rx) for a in matrix.assignments] == [("source1", "display1"), (None, "display2")]
+
+
+async def test_notifications_in_foreign_burst_are_dispatched(ssh_client, device):
+    received = []
+    ssh_client.register_notification_callback("endpoint", received.append)
+    device.reply(
+        "matrix get",
+        "matrix get\r\nnotify endpoint + source1\r\nmatrix information:\r\nsource1 display1\r\n"
+        "config get version\r\nnotify endpoint - source2\r\nAPI version: v1.21\r\n",
+    )
+
+    assert await ssh_client.send_command("matrix get", **FAST) == "matrix get\nmatrix information:\nsource1 display1"
+    assert [n.device for n in received] == ["source1", "source2"]
+
+
+@pytest.mark.parametrize(
+    ("line", "foreign"),
+    [
+        ("config get devicejsonstring", True),
+        ("config get version", True),
+        ("matrix get display1", True),  # differs from our "matrix get"
+        ("matrix get", False),  # our own echo
+        ("matrix information:", False),
+        ("matrix video information:", False),
+        ("scene list:", False),
+        ("mscene list:", False),
+        ("devices json info:", False),
+        ("scene OfficeVW-Splitmode active success", False),
+        ("mscene active display1 grid failure", False),
+        ("display1's alias is DISPLAY1", False),
+        ("source1 display1", False),
+        ("API version: v1.21", False),
+    ],
+)
+def test_is_foreign_echo(line, foreign):
+    assert _is_foreign_echo(line, "matrix get") is foreign
