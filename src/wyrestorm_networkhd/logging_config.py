@@ -1,21 +1,8 @@
 """NetworkHD API client logging configuration.
 
-This module provides logging configuration for the NetworkHD API client.
-Logging is automatically configured when the client is used, but can be customized
-for different environments and requirements.
-
-Features:
-- Automatic logging setup with sensible defaults
-- Configurable log levels and formats
-- File and console logging support
-- Environment variable configuration
-- Structured logging for better debugging
-
-Default behavior:
-- Log level: INFO
-- Output: Console
-- Format: Standard Python logging format
-- Automatic setup when client is imported
+The library logs under the ``wyrestorm_networkhd`` logger and, like any library, leaves configuring
+logging to the application: importing the package adds only a ``NullHandler``. ``setup_logging()`` is an
+opt-in helper for scripts and development that attaches console/file handlers to the package logger.
 
 For usage examples, see README.md.
 """
@@ -24,6 +11,10 @@ import logging
 import sys
 from pathlib import Path
 
+_PACKAGE_LOGGER = "wyrestorm_networkhd"
+
+logging.getLogger(_PACKAGE_LOGGER).addHandler(logging.NullHandler())
+
 
 def setup_logging(
     level: str = "INFO",
@@ -31,7 +22,10 @@ def setup_logging(
     log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     date_format: str = "%Y-%m-%d %H:%M:%S",
 ) -> None:
-    """Set up logging configuration for the package.
+    """Attach console (and optionally file) handlers to the ``wyrestorm_networkhd`` logger.
+
+    Calling it again replaces the handlers already on that logger (other than the ``NullHandler``), so it can be
+    called more than once. The root logger and its handlers are left alone.
 
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
@@ -45,19 +39,18 @@ def setup_logging(
     # Create formatter
     formatter = logging.Formatter(log_format, date_format)
 
-    # Configure root logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(numeric_level)
-
-    # Clear any existing handlers to avoid duplicates
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
+    # Configure the package logger only; replace handlers from a previous call to avoid duplicates
+    package_logger = logging.getLogger(_PACKAGE_LOGGER)
+    package_logger.setLevel(numeric_level)
+    for handler in package_logger.handlers[:]:
+        if not isinstance(handler, logging.NullHandler):
+            package_logger.removeHandler(handler)
 
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(numeric_level)
     console_handler.setFormatter(formatter)
-    root_logger.addHandler(console_handler)
+    package_logger.addHandler(console_handler)
 
     # File handler (if specified)
     if log_file:
@@ -65,11 +58,7 @@ def setup_logging(
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(numeric_level)
         file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
-
-    # Set specific logger levels
-    logging.getLogger("paramiko").setLevel(logging.WARNING)  # Reduce paramiko noise
-    logging.getLogger("asyncio").setLevel(logging.WARNING)  # Reduce asyncio noise
+        package_logger.addHandler(file_handler)
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -82,7 +71,3 @@ def get_logger(name: str) -> logging.Logger:
         Configured logger instance
     """
     return logging.getLogger(name)
-
-
-# Default logging setup
-setup_logging()

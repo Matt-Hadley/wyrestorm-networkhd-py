@@ -134,12 +134,6 @@ omit = [
     "src/wyrestorm_networkhd/logging_config.py",
 ]
 
-# Logging configuration
-[tool.logging]
-default_level = "INFO"
-default_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-default_date_format = "%Y-%m-%d %H:%M:%S"
-
 [tool.mypy]
 python_version = "3.11"
 warn_return_any = true
