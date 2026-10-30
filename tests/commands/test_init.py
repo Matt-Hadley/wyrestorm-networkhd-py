@@ -1,5 +1,7 @@
 from unittest.mock import Mock
 
+import pytest
+
 from wyrestorm_networkhd import NetworkHDClientSSH
 from wyrestorm_networkhd.commands import NHDAPI
 
@@ -111,3 +113,53 @@ class TestNHDAPI:
         assert hasattr(api.api_query, "config_get_device_info")
         assert hasattr(api.video_stream_text_overlay, "config_set_device_osd_param")
         assert hasattr(api.api_endpoint, "config_set_session_alias")
+
+    def test_nhdapi_rejects_non_client(self):
+        """Test NHDAPI raises TypeError for objects that are not NetworkHD clients."""
+        # Arrange
+        not_a_client = Mock()
+
+        # Act & Assert
+        with pytest.raises(TypeError, match="Mock"):
+            NHDAPI(not_a_client)
+
+
+class TestPackageExports:
+    """Unit tests for the package's public names."""
+
+    def test_all_names_resolve(self):
+        """Test every name in __all__ is importable from the package."""
+        # Arrange
+        import wyrestorm_networkhd
+
+        # Act & Assert
+        for name in wyrestorm_networkhd.__all__:
+            assert getattr(wyrestorm_networkhd, name) is not None
+
+    def test_exceptions_exported(self):
+        """Test exception classes are exported and ResponseError is still a ValueError."""
+        # Arrange
+        from wyrestorm_networkhd import NetworkHDError, ResponseError
+
+        # Act & Assert
+        assert issubclass(ResponseError, NetworkHDError)
+        assert issubclass(ResponseError, ValueError)
+
+    def test_rs232_client_is_lazy(self):
+        """Test NetworkHDClientRS232 is importable from the package but kept out of __all__."""
+        # Arrange
+        import wyrestorm_networkhd
+        from wyrestorm_networkhd.core.client_rs232 import NetworkHDClientRS232
+
+        # Act & Assert
+        assert wyrestorm_networkhd.NetworkHDClientRS232 is NetworkHDClientRS232
+        assert "NetworkHDClientRS232" not in wyrestorm_networkhd.__all__
+
+    def test_unknown_attribute_raises(self):
+        """Test unknown package attributes raise AttributeError."""
+        # Arrange
+        import wyrestorm_networkhd
+
+        # Act & Assert
+        with pytest.raises(AttributeError):
+            _ = wyrestorm_networkhd.DoesNotExist

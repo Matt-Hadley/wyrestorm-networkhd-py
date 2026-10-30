@@ -4,94 +4,70 @@
 [![Python Support](https://img.shields.io/pypi/pyversions/wyrestorm-networkhd.svg)](https://pypi.org/project/wyrestorm-networkhd/)
 [![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/Matt-Hadley/8f4a6e65e2d520f63a82a34cddcc4b56/raw/coverage.json)](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-A Python client library for WyreStorm NetworkHD devices, providing a high-level interface for device control and
-monitoring. Features **strongly typed APIs**, **async/await support**, **multiple connection types** (SSH and RS232),
-**comprehensive API coverage**, **robust error handling**, and **real-time notifications**.
+An async Python client for WyreStorm NetworkHD AV-over-IP systems. It talks to the NetworkHD controller over SSH or
+RS232, wraps the NetworkHD API in typed methods and response models, and delivers real-time notifications to your
+callbacks.
 
-📖 **[View Documentation](https://matt-hadley.github.io/wyrestorm-networkhd-py/)** | 🚀 **[Quick Start](#quick-start)**
-| 💻 **[API Reference](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/core/)** | 🔧
+📖 **[Documentation](https://matt-hadley.github.io/wyrestorm-networkhd-py/)** | 🔄
+**[Migrating from 2.x](https://matt-hadley.github.io/wyrestorm-networkhd-py/migration/)** | 💻
+**[API Reference](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/core/)** | 🔧
 **[Troubleshooting](https://matt-hadley.github.io/wyrestorm-networkhd-py/troubleshooting/)**
+
+## Supported hardware
+
+- **Controllers:** NHD-000-CTL and NHD-CTL-PRO, as covered by the
+  [NetworkHD API v6.7](https://matt-hadley.github.io/wyrestorm-networkhd-py/resources/) document. The library talks to
+  the controller only, never to endpoints directly.
+- **Endpoints:** the 100, 200, 400, 500 and 600 series encoders and decoders that the API document covers. Some commands
+  apply to certain series only; each method's docstring lists them.
+- **Tested on:** NHD-000-CTL firmware v9.4.7 (API v1.28) with NHD-400 TX/RX firmware v2.5.6, over SSH.
+- **Connection:** SSH (port 10022) or RS232. The controller ships with only Telnet enabled, which this library does not
+  support: enable SSH in the controller's web interface first.
 
 ## Installation
 
 ```bash
 pip install wyrestorm-networkhd
 
-# For RS232 support (optional)
-pip install wyrestorm-networkhd[rs232]
+# With RS232 support
+pip install "wyrestorm-networkhd[rs232]"
 ```
+
+Requires Python 3.11 or later.
 
 ## Quick Start
 
 ```python
 import asyncio
-from wyrestorm_networkhd import NetworkHDClientSSH, NHDAPI
+
+from wyrestorm_networkhd import NHDAPI, NetworkHDClientSSH
+
 
 async def main():
-    # Create SSH client
     client = NetworkHDClientSSH(
         host="192.168.1.100",
         port=10022,
         username="wyrestorm",
         password="networkhd",
-        ssh_host_key_policy="warn"
+        ssh_host_key_policy="warn",
     )
 
-    # Register notification callbacks for real-time updates
-    def on_device_status(notification):
-        print(f"Device {notification.device} is {'online' if notification.online else 'offline'}")
-
-    def on_cec_data(notification):
-        print(f"CEC data from {notification.device}: {notification.cec_data}")
-
-    client.register_notification_callback("endpoint", on_device_status)
-    client.register_notification_callback("cecinfo", on_cec_data)
-
-    # Use async context manager for automatic connection handling
     async with client:
-        # Create API wrapper for organized command access
         api = NHDAPI(client)
 
-        # Execute commands and get typed responses
-        device_list = await api.api_query.config_get_devicelist()
-        matrix_info = await api.api_query.matrix_get()
+        print(await api.api_query.config_get_version())
 
-        # Query device information with typed responses
-        devices = await api.api_query.config_get_device_info()
-        for device in devices:
-            print(f"Device {device.aliasname} ({device.name}) - IP: {device.ip4addr}")
+        for device in await api.api_query.config_get_devicejsonstring():
+            print(f"{device.aliasName} ({device.deviceType}): {'online' if device.online else 'offline'}")
 
-        # Query device status with typed responses
-        status_list = await api.api_query.config_get_device_status()
-        for status in status_list:
-            print(f"Device {status.aliasname} - HDMI out: {status.hdmi_out_active}")
-        await api.video_wall.scene_active("office", "splitmode")
 
-        # Real-time notifications are automatically handled in the background
-
-# Run the async function
 asyncio.run(main())
 ```
 
-## 📚 Documentation
-
-**🌐 [Complete Documentation](https://matt-hadley.github.io/wyrestorm-networkhd-py/)**
-
-- **[Getting Started](https://matt-hadley.github.io/wyrestorm-networkhd-py/)**: Installation, configuration, and usage
-  examples
-- **[API Reference](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/core/)**: Complete API documentation
-  with type hints
-- **[Core Components](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/core/)**: Client classes and
-  connection management
-- **[Commands](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/commands/)**: All command modules and
-  methods
-- **[Models](https://matt-hadley.github.io/wyrestorm-networkhd-py/reference/models/)**: Data models and response
-  structures
-- **[Resources](https://matt-hadley.github.io/wyrestorm-networkhd-py/resources/)**: NetworkHD raw API documentation
-- **[Troubleshooting](https://matt-hadley.github.io/wyrestorm-networkhd-py/troubleshooting/)**: Common issues and
-  solutions
+This only reads from the controller. The [documentation](https://matt-hadley.github.io/wyrestorm-networkhd-py/) covers
+switching, video walls, multiview, notifications, RS232 and the SSH host key policies (`"warn"` accepts any host key).
 
 ## License
 

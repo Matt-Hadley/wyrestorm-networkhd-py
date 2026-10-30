@@ -1,10 +1,13 @@
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from ._response_helpers import require_command_mirror, require_success_indicator
 
+if TYPE_CHECKING:
+    from ..core._client import _BaseNetworkHDClient
+
 
 class MultiviewCommands:
-    def __init__(self, client):
+    def __init__(self, client: "_BaseNetworkHDClient") -> None:
         self.client = client
 
     # =============================================================

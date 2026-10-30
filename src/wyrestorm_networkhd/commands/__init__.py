@@ -4,10 +4,20 @@ This module provides the NHDAPI class that organizes all NetworkHD API commands
 into logical groups for easy access.
 """
 
-from typing import TYPE_CHECKING
+from ..core._client import _BaseNetworkHDClient
+from .api_endpoint import APIEndpointCommands
+from .api_notifications import APINotificationsCommands
+from .api_query import APIQueryCommands
+from .audio_output import AudioOutputCommands
+from .connected_device_control import ConnectedDeviceControlCommands
+from .device_port_switch import DevicePortSwitchCommands
+from .media_stream_matrix_switch import MediaStreamMatrixSwitchCommands
+from .multiview import MultiviewCommands
+from .reboot_reset import RebootResetCommands
+from .video_stream_text_overlay import VideoStreamTextOverlayCommands
+from .video_wall import VideoWallCommands
 
-if TYPE_CHECKING:
-    from ..core._client import _BaseNetworkHDClient
+__all__ = ["NHDAPI"]
 
 
 class NHDAPI:
@@ -17,10 +27,12 @@ class NHDAPI:
     Each command group contains related commands for a specific domain.
 
     This class supports any NetworkHD client implementation, including SSH and RS232 clients.
-    Future client implementations are automatically supported.
 
     Args:
         client: A NetworkHD client instance (NetworkHDClientSSH, NetworkHDClientRS232, etc.)
+
+    Raises:
+        TypeError: If client is not a NetworkHD client.
 
     Example:
         ```python
@@ -29,79 +41,36 @@ class NHDAPI:
         # Create a client
         client = NetworkHDClientSSH(
             host="192.168.1.100",
-            port=22,
+            port=10022,
             username="admin",
             password="password",
-            ssh_host_key_policy="auto_add"
+            ssh_host_key_policy="warn",
         )
 
         # Create API wrapper
         api = NHDAPI(client)
 
         # Use command groups
-        await api.api_query.get_device_info()
+        await api.api_query.config_get_device_info()
         ```
     """
 
-    def __init__(self, client: "_BaseNetworkHDClient"):
-        # Import the base class for runtime validation
-        from ..core._client import _BaseNetworkHDClient
-
-        # Validate that the client type is supported
+    def __init__(self, client: _BaseNetworkHDClient) -> None:
         if not isinstance(client, _BaseNetworkHDClient):
             raise TypeError(
                 f"Client must be a NetworkHD client (like NetworkHDClientSSH or NetworkHDClientRS232), "
                 f"got {type(client).__name__}"
             )
 
-        # Store the client
         self.client = client
-
-        # Dynamically discover and initialize all command groups
-        self._initialize_command_groups(client)
-
-    def _initialize_command_groups(self, client: "_BaseNetworkHDClient") -> None:
-        """Dynamically discover and initialize all command group classes.
-
-        This method automatically finds all command modules in the commands package
-        and initializes their command classes, making NHDAPI automatically support
-        any new command groups without code changes.
-
-        Args:
-            client: The NetworkHD client to pass to each command group
-        """
-        import importlib
-        import inspect
-        import pkgutil
-        from pathlib import Path
-
-        # Get the path to the commands package
-        commands_path = Path(__file__).parent
-
-        # Iterate through all modules in the commands package
-        for _, name, _ in pkgutil.iter_modules([str(commands_path)]):
-            # Skip private modules and __init__.py
-            if name.startswith("_") or name == "__init__":
-                continue
-
-            try:
-                # Import the module
-                module = importlib.import_module(f".{name}", package=__name__)
-
-                # Find command classes in the module (classes ending with 'Commands')
-                for class_name, class_obj in inspect.getmembers(module, inspect.isclass):
-                    if (
-                        class_name.endswith("Commands")
-                        and class_obj.__module__ == module.__name__
-                        and hasattr(class_obj, "__init__")
-                    ):
-                        # Create attribute name from module name (snake_case)
-                        attr_name = name
-
-                        # Initialize the command group and add it as an attribute
-                        command_instance = class_obj(client)
-                        setattr(self, attr_name, command_instance)
-
-            except ImportError:
-                # Skip modules that can't be imported (missing dependencies, etc.)
-                continue
+        self.api_endpoint = APIEndpointCommands(client)
+        self.api_notifications = APINotificationsCommands(client)
+        self.api_query = APIQueryCommands(client)
+        self.audio_output = AudioOutputCommands(client)
+        self.connected_device_control = ConnectedDeviceControlCommands(client)
+        self.device_port_switch = DevicePortSwitchCommands(client)
+        self.media_stream_matrix_switch = MediaStreamMatrixSwitchCommands(client)
+        self.multiview = MultiviewCommands(client)
+        self.reboot_reset = RebootResetCommands(client)
+        self.video_stream_text_overlay = VideoStreamTextOverlayCommands(client)
+        self.video_wall = VideoWallCommands(client)

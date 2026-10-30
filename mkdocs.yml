@@ -43,7 +43,7 @@ theme:
 nav:
     - Home:
           - Overview: index.md
-
+          - Migrating from 2.x: migration.md
           - Security: security.md
           - License: license.md
     - API Reference:
