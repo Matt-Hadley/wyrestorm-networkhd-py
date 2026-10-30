@@ -19,7 +19,6 @@ PYTEST := $(shell if [ -x "$(VENV_BIN)/pytest" ]; then echo "$(VENV_BIN)/pytest"
 PRE_COMMIT := $(shell if [ -x "$(VENV_BIN)/pre-commit" ]; then echo "$(VENV_BIN)/pre-commit"; else echo "pre-commit"; fi)
 VULTURE := $(shell if [ -x "$(VENV_BIN)/vulture" ]; then echo "$(VENV_BIN)/vulture"; else echo "vulture"; fi)
 PYUPGRADE := $(shell if [ -x "$(VENV_BIN)/pyupgrade" ]; then echo "$(VENV_BIN)/pyupgrade"; else echo "pyupgrade"; fi)
-SPHINX := $(shell if [ -x "$(VENV_BIN)/sphinx-build" ]; then echo "$(VENV_BIN)/sphinx-build"; else echo "sphinx-build"; fi)
 
 # Better Python detection
 PYTHON3 := $(shell command -v python3 2> /dev/null || echo "python3")
@@ -54,15 +53,15 @@ endif
 # Phony targets
 .PHONY: help \
         install install-pkg create-venv install-deps update-deps \
-        test test-cov \
-        format format-code format-docs \
+        test test-fast test-integration test-performance test-cov \
+        format format-check format-code format-docs \
         lint type-check type-check-strict \
         security-check security-audit code-quality check \
-        build release \
+        build \
         clean clean-all clean-build clean-pyc clean-test clean-cache clean-docs \
         health-check check-project-structure check-versions show-deps \
         setup-pre-commit pre-commit validate-config ensure-venv \
-        dev-workflow docker-build docker-test \
+        dev-workflow \
         docs docs-serve
 
 # =============================================================================
@@ -86,7 +85,7 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(YELLOW)🧪 Testing:$(NC)"
 	@echo "  test             - Run all tests"
-	@echo "  test-fast        - Run only fast unit tests (daily development)"
+	@echo "  test-fast        - Run all tests except integration and performance"
 	@echo "  test-integration - Run integration tests only"
 	@echo "  test-performance - Run performance tests only"
 	@echo "  test-cov         - Run all tests with coverage report"
@@ -107,7 +106,6 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(YELLOW)📦 Build & Release:$(NC)"
 	@echo "  build            - Build and validate package"
-	@echo "  release          - Prepare for release"
 	@echo ""
 	@echo "$(YELLOW)🧹 Cleanup:$(NC)"
 	@echo "  clean            - Remove all build artifacts"
@@ -123,10 +121,6 @@ help: ## Show this help message
 	@echo "  docs             - Build MkDocs documentation with all extensions"
 	@echo "  docs-serve       - Serve documentation locally with live reload"
 	@echo "  clean-docs       - Clean documentation build artifacts"
-	@echo ""
-	@echo "$(BLUE)🐳 Docker:$(NC)"
-	@echo "  docker-build     - Build Docker image"
-	@echo "  docker-test      - Run tests in Docker"
 
 # =============================================================================
 # Quick Start Targets
@@ -182,8 +176,8 @@ test: ## Run all tests
 	$(Q)$(PYTEST)
 	@echo "$(GREEN)✓$(NC) All tests completed"
 
-test-fast: ## Run only fast unit tests (exclude integration and performance tests)
-	$(ECHO) "$(YELLOW)Running fast unit tests only...$(NC)"
+test-fast: ## Run all tests except integration and performance tests
+	$(ECHO) "$(YELLOW)Running tests except integration and performance...$(NC)"
 	$(Q)$(PYTEST) -m "not integration and not performance" --tb=short
 	@echo "$(GREEN)✓$(NC) Fast tests completed"
 
@@ -378,19 +372,6 @@ clean-docs: ## Clean documentation build artifacts
 	$(ECHO) "$(YELLOW)Cleaning documentation build...$(NC)"
 	$(Q)rm -rf $(DOCS_BUILD_DIR)/
 	@echo "$(GREEN)✓$(NC) Documentation build cleaned"
-
-# =============================================================================
-# Docker
-# =============================================================================
-docker-build: ## Build Docker image
-	$(ECHO) "$(YELLOW)Building Docker image...$(NC)"
-	$(Q)docker build -t $(PROJECT_DISPLAY_NAME) .
-	@echo "$(GREEN)✓$(NC) Docker image built"
-
-docker-test: ## Run tests in Docker
-	$(ECHO) "$(YELLOW)Running tests in Docker...$(NC)"
-	$(Q)docker run --rm $(PROJECT_DISPLAY_NAME) $(PYTHON) -m pytest
-	@echo "$(GREEN)✓$(NC) Docker tests completed"
 
 # =============================================================================
 # Internal/Support Targets
