@@ -49,6 +49,20 @@ class ReconnectionError(ConnectionError):
         super().__init__(f"Failed to reconnect to '{host}' after {attempts} attempts. Last error: {last_error}")
 
 
+class HostKeyMismatchError(ConnectionError):
+    """Exception raised when the SSH server's host key matches none of the pinned fingerprints.
+
+    Raised before authentication, so the password is never sent to that server.
+    """
+
+    def __init__(self, host: str, presented_fingerprint: str):
+        self.host = host
+        self.presented_fingerprint = presented_fingerprint
+        super().__init__(
+            f"SSH host key of '{host}' is {presented_fingerprint}, which does not match the configured fingerprint(s)"
+        )
+
+
 class AuthenticationError(NetworkHDError):
     """Exception raised when authentication fails"""
 

@@ -18,6 +18,7 @@ from ..exceptions import (
     CommandError,
     ConnectionError,
     ConnectionLostError,
+    HostKeyMismatchError,
     NetworkHDError,
     ReconnectionError,
     TimeoutError,
@@ -383,6 +384,7 @@ class _BaseNetworkHDClient(ABC):
         Raises:
             ReconnectionError: If every attempt fails.
             AuthenticationError: If the device rejects the credentials (not retried).
+            HostKeyMismatchError: If the SSH host key matches none of the pinned fingerprints (not retried).
         """
         already_running = self._reconnect_lock.locked()
         async with self._reconnect_lock:
@@ -402,7 +404,7 @@ class _BaseNetworkHDClient(ABC):
                     await self.connect()
                     self.logger.info("Reconnection successful")
                     return
-                except AuthenticationError:
+                except (AuthenticationError, HostKeyMismatchError):
                     raise
                 except Exception as e:
                     last_error = e

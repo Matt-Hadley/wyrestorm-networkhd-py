@@ -16,7 +16,7 @@ except ImportError:
     __version__ = "dev"
 
 from .commands import NHDAPI
-from .core.client_ssh import NetworkHDClientSSH
+from .core.client_ssh import NetworkHDClientSSH, normalize_fingerprints
 from .exceptions import (
     AuthenticationError,
     CommandError,
@@ -24,6 +24,7 @@ from .exceptions import (
     ConnectionLostError,
     DeviceNotFoundError,
     DeviceQueryError,
+    HostKeyMismatchError,
     NetworkHDError,
     ReconnectionError,
     ResponseError,
@@ -53,6 +54,7 @@ __all__ = [
     "ConnectionLostError",
     "DeviceNotFoundError",
     "DeviceQueryError",
+    "HostKeyMismatchError",
     "NetworkHDClientSSH",
     "NetworkHDError",
     "ReconnectionError",
@@ -60,4 +62,5 @@ __all__ = [
     "TimeoutError",
     "UnknownCommandError",
     "__version__",
+    "normalize_fingerprints",
 ]
