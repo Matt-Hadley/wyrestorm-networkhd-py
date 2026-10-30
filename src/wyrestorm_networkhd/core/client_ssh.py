@@ -2,7 +2,6 @@
 
 import asyncio
 import base64
-import binascii
 import contextlib
 import hashlib
 import re
@@ -48,7 +47,7 @@ def _parse_sha256(token: str) -> str | None:
         return None
     try:
         digest = base64.b64decode(b64 + "=", validate=True)
-    except (binascii.Error, ValueError):
+    except ValueError:  # binascii.Error is a ValueError
         return None
     return f"SHA256:{b64}" if len(digest) == 32 else None
 
@@ -155,6 +154,9 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
                 `normalize_fingerprints` accepts. When given, only a matching host key is accepted, checked before
                 the password is sent, and `ssh_host_key_policy` is ignored; a mismatch raises
                 HostKeyMismatchError. None (default) leaves host key checking to `ssh_host_key_policy`.
+                Also a settable attribute, read at every connect: assign a tuple from `normalize_fingerprints` (or
+                None) on an existing client, e.g. after trusting `host_key_fingerprint` on first use, and the next
+                connect or reconnect is checked against it.
 
         Raises:
             ValueError: If required parameters are missing or invalid.
@@ -242,7 +244,6 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
             raise AuthenticationError(self.username, self.host) from e
         except paramiko.SSHException as e:
             raise ConnectionError(f"SSH error: {e}") from e
-        self._host_key_fingerprint = policy.presented
 
         transport = self.client.get_transport()
         if transport is not None:
@@ -250,6 +251,7 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
         shell = await _in_thread(self.client.invoke_shell)
         shell.settimeout(self.timeout)
         self.shell = shell
+        self._host_key_fingerprint = policy.presented
 
     async def _close_transport(self) -> None:
         shell, client = self.shell, self.client

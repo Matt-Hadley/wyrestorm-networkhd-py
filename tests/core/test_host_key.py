@@ -284,3 +284,19 @@ async def test_reconnect_does_not_retry_mismatch(server):
 
     assert len(ssh.transports) == 1
     assert ssh.passwords == []
+
+
+@pytest.mark.asyncio
+async def test_pinning_existing_client_applies_on_next_connect(server):
+    ssh = server()
+    client = ssh.client()
+    await client.connect()
+    await client.disconnect()
+    assert client.host_key_fingerprint == ECDSA_FP
+
+    client.host_key_fingerprints = normalize_fingerprints(OTHER_FP)
+    with pytest.raises(HostKeyMismatchError):
+        await client.connect()
+
+    assert ssh.passwords == ["secret"]  # only the first, unpinned connect sent it
+    assert client.host_key_fingerprint == ECDSA_FP
