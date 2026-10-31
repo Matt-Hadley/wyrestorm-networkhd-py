@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Literal
 
+from ..exceptions import ResponseError
 from ._response_helpers import require_success_indicator, strip_echo
 
 if TYPE_CHECKING:
@@ -106,11 +107,10 @@ class VideoWallCommands:
         """
         command = f"scene set {videowall}-{scene} {x} {y} {tx}"
         response = await self.client.send_command(command)
-        # Consider success if the response matches the expected statement exactly
-        success: bool = (
-            strip_echo(response, command).strip() == f"scene {videowall}-{scene}'s source in [{x},{y}] change to {tx}"
-        )
-        return success
+        expected = f"scene {videowall}-{scene}'s source in [{x},{y}] change to {tx}"
+        if strip_echo(response, command).strip() != expected:
+            raise ResponseError(f"Unexpected response. Expected: '{expected}', got: '{response}'")
+        return True
 
     async def vw_change(self, videowall: str, scene: str, lscreen: str, tx: str) -> bool:
         """Change the encoder assigned to a Logical Screen in a 'standard video wall' Scene
@@ -154,11 +154,14 @@ class VideoWallCommands:
         """
         command = f"vw change {videowall}-{scene}_{lscreen} {tx}"
         response = await self.client.send_command(command)
-        success: bool = (
-            strip_echo(response, command).strip()
-            == f"videowall change {videowall}-{scene}_{lscreen} tx connect to {tx}"
-        )
-        return success
+        # The PDF's response structure omits "change" but its example has it; accept both
+        expected = f"videowall change {videowall}-{scene}_{lscreen} tx connect to {tx}"
+        if strip_echo(response, command).strip() not in (
+            expected,
+            expected.replace("videowall change ", "videowall ", 1),
+        ):
+            raise ResponseError(f"Unexpected response. Expected: '{expected}', got: '{response}'")
+        return True
 
     # =============================================================
     # 10.2 Video Wall – 'Video Wall within a Wall' Scenes

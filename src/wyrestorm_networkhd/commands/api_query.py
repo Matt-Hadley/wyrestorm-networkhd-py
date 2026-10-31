@@ -24,7 +24,7 @@ from ..models.api_query import (
     VideoWallSceneList,
     VideowallWithinWallSceneList,
 )
-from ._response_helpers import strip_echo
+from ._response_helpers import join_devices, strip_echo
 
 if TYPE_CHECKING:
     from ..core._client import _BaseNetworkHDClient
@@ -380,7 +380,7 @@ class APIQueryCommands:
     # return the current stream matrix assignments between endpoints.
     # =============================================================
 
-    async def matrix_get(self, rx_devices: list[str] | None = None) -> Matrix:
+    async def matrix_get(self, rx_devices: str | list[str] | None = None) -> Matrix:
         """Query RX assignments where using all primary media streams
 
         Args:
@@ -425,14 +425,14 @@ class APIQueryCommands:
             NULL Display4
         """
         if rx_devices:
-            device_list = " ".join(rx_devices)
+            device_list = join_devices(rx_devices)
             command = f"matrix get {device_list}"
         else:
             command = "matrix get"
         response = await self.client.send_command(command)
         return Matrix.parse(response)
 
-    async def matrix_video_get(self, rx_devices: list[str] | None = None) -> MatrixVideo:
+    async def matrix_video_get(self, rx_devices: str | list[str] | None = None) -> MatrixVideo:
         """Query RX stream assignments for video output
 
         Args:
@@ -484,14 +484,14 @@ class APIQueryCommands:
             Source2 Display3
         """
         if rx_devices:
-            device_list = " ".join(rx_devices)
+            device_list = join_devices(rx_devices)
             command = f"matrix video get {device_list}"
         else:
             command = "matrix video get"
         response = await self.client.send_command(command)
         return MatrixVideo.parse(response)
 
-    async def matrix_audio_get(self, rx_devices: list[str] | None = None) -> MatrixAudio:
+    async def matrix_audio_get(self, rx_devices: str | list[str] | None = None) -> MatrixAudio:
         """Query RX stream assignments for HDMI audio output
 
         Args:
@@ -543,14 +543,14 @@ class APIQueryCommands:
             Source2 Display3
         """
         if rx_devices:
-            device_list = " ".join(rx_devices)
+            device_list = join_devices(rx_devices)
             command = f"matrix audio get {device_list}"
         else:
             command = "matrix audio get"
         response = await self.client.send_command(command)
         return MatrixAudio.parse(response)
 
-    async def matrix_audio2_get(self, rx_devices: list[str] | None = None) -> MatrixAudio2:
+    async def matrix_audio2_get(self, rx_devices: str | list[str] | None = None) -> MatrixAudio2:
         """Query RX stream assignments for analog audio output
 
         Args:
@@ -601,7 +601,7 @@ class APIQueryCommands:
             Source2 Display3
         """
         if rx_devices:
-            device_list = " ".join(rx_devices)
+            device_list = join_devices(rx_devices)
             command = f"matrix audio2 get {device_list}"
         else:
             command = "matrix audio2 get"
@@ -650,6 +650,8 @@ class APIQueryCommands:
             matrix audio3 information:
             Display1 Source3
         """
+        if tx_device and not rx_device:
+            raise ValueError("tx_device can only be given together with rx_device")
         if rx_device and tx_device:
             command = f"matrix audio3 get {rx_device} {tx_device}"
         elif rx_device:
@@ -659,7 +661,7 @@ class APIQueryCommands:
         response = await self.client.send_command(command)
         return MatrixAudio3.parse(response)
 
-    async def matrix_usb_get(self, rx_devices: list[str] | None = None) -> MatrixUsb:
+    async def matrix_usb_get(self, rx_devices: str | list[str] | None = None) -> MatrixUsb:
         """Query RX stream assignments for USB
 
         Args:
@@ -709,14 +711,14 @@ class APIQueryCommands:
             Source2 Display3
         """
         if rx_devices:
-            device_list = " ".join(rx_devices)
+            device_list = join_devices(rx_devices)
             command = f"matrix usb get {device_list}"
         else:
             command = "matrix usb get"
         response = await self.client.send_command(command)
         return MatrixUsb.parse(response)
 
-    async def matrix_infrared_get(self, rx_devices: list[str] | None = None) -> MatrixInfrared:
+    async def matrix_infrared_get(self, rx_devices: str | list[str] | None = None) -> MatrixInfrared:
         """Query RX stream assignments for infrared
 
         Args:
@@ -766,14 +768,14 @@ class APIQueryCommands:
             Source2 Display3
         """
         if rx_devices:
-            device_list = " ".join(rx_devices)
+            device_list = join_devices(rx_devices)
             command = f"matrix infrared get {device_list}"
         else:
             command = "matrix infrared get"
         response = await self.client.send_command(command)
         return MatrixInfrared.parse(response)
 
-    async def matrix_infrared2_get(self, devices: list[str] | None = None) -> MatrixInfrared2:
+    async def matrix_infrared2_get(self, devices: str | list[str] | None = None) -> MatrixInfrared2:
         """Query TX or RX stream assignments for infrared receiver port
 
         Args:
@@ -827,14 +829,14 @@ class APIQueryCommands:
             source1 single display1
         """
         if devices:
-            device_list = " ".join(devices)
+            device_list = join_devices(devices)
             command = f"matrix infrared2 get {device_list}"
         else:
             command = "matrix infrared2 get"
         response = await self.client.send_command(command)
         return MatrixInfrared2.parse(response)
 
-    async def matrix_serial_get(self, rx_devices: list[str] | None = None) -> MatrixSerial:
+    async def matrix_serial_get(self, rx_devices: str | list[str] | None = None) -> MatrixSerial:
         """Query RX stream assignments for RS-232
 
         Args:
@@ -883,14 +885,14 @@ class APIQueryCommands:
             Source2 Display3
         """
         if rx_devices:
-            device_list = " ".join(rx_devices)
+            device_list = join_devices(rx_devices)
             command = f"matrix serial get {device_list}"
         else:
             command = "matrix serial get"
         response = await self.client.send_command(command)
         return MatrixSerial.parse(response)
 
-    async def matrix_serial2_get(self, devices: list[str] | None = None) -> MatrixSerial2:
+    async def matrix_serial2_get(self, devices: str | list[str] | None = None) -> MatrixSerial2:
         """Query TX or RX stream assignments for RS-232 port
 
         Args:
@@ -944,7 +946,7 @@ class APIQueryCommands:
             source1 single display1
         """
         if devices:
-            device_list = " ".join(devices)
+            device_list = join_devices(devices)
             command = f"matrix serial2 get {device_list}"
         else:
             command = "matrix serial2 get"

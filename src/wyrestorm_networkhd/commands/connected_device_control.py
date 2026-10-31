@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Literal
 
-from ._response_helpers import require_command_mirror
+from ._response_helpers import join_devices, require_command_mirror, require_no_quote
 
 if TYPE_CHECKING:
     from ..core._client import _BaseNetworkHDClient
@@ -57,9 +57,7 @@ class ConnectedDeviceControlCommands:
         Response Example: Command acknowledgment
             config set device sinkpower on display1
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
+        rx_list = join_devices(rx)
         command = f"config set device sinkpower {power} {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -106,9 +104,7 @@ class ConnectedDeviceControlCommands:
         Response Example: Command acknowledgment
             config set device cec standby display1
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
+        rx_list = join_devices(rx)
         command = f"config set device cec {command_type} {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -154,6 +150,7 @@ class ConnectedDeviceControlCommands:
         Response Example: Command acknowledgment
             cec "FF36" display1
         """
+        require_no_quote(cecdata)
         command = f'cec "{cecdata}" {rx}'
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -201,6 +198,7 @@ class ConnectedDeviceControlCommands:
             infrared "0000 0067 0000 0015 0060 0018 0030 0018 0018 0018 0030 0018..." source1
             ```
         """
+        require_no_quote(irdata)
         command = f'infrared "{irdata}" {device}'
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -292,6 +290,7 @@ class ConnectedDeviceControlCommands:
             serial -b 19200-7e2 -r off -n off -h on "4c 6f 72 65 6d 20 69 70 73 75..." display1
             ```
         """
+        require_no_quote(data)
         cr_flag = "on" if cr else "off"
         lf_flag = "on" if lf else "off"
         hex_flag = "on" if hex_format else "off"

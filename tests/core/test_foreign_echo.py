@@ -25,6 +25,11 @@ pytestmark = pytest.mark.unit
         ("display1's alias is DISPLAY1", False),
         ("source1 display1", False),
         ("API version: v1.21", False),
+        ("scene display1", False),  # a matrix row whose TX is aliased like a verb
+        ("matrix display1 display2", False),
+        ('cec "FF36" display1', True),
+        ('serial -b 9600-8n1 -r on -n on -h off "x" display1', True),
+        ("wscene2 window close Wall-scene window1", True),
     ],
 )
 def test_is_foreign_echo(line, foreign):

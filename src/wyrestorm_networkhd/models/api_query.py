@@ -124,6 +124,8 @@ def _load_device_entries(response: str, key: str, single: bool = False) -> list[
         raise ResponseError(f"No '{key}' key found in response: {response}")
 
     entries: list[dict[str, Any]] = data[key]
+    if not all(isinstance(entry, dict) for entry in entries):
+        raise ResponseError(f"Expected a list of device objects under '{key}' in response: {response}")
     errors = [entry for entry in entries if "error" in entry]
     if errors and single:
         raise DeviceQueryError(errors[0].get("name", "unknown"), errors[0].get("error", "unknown error"))
@@ -151,7 +153,10 @@ def _build_devices(
     devices = []
     for entry in entries:
         try:
-            devices.append(build(entry))
+            try:
+                devices.append(build(entry))
+            except (AttributeError, TypeError) as e:  # a nested value of the wrong JSON type
+                raise ResponseError(f"Invalid device data: {e}") from e
         except ResponseError as e:
             if single:
                 raise
@@ -168,6 +173,9 @@ def _skip_to_header(response: str, header: str) -> list[str]:
 
     Returns:
         list[str]: Lines of data after the header, with empty lines filtered out
+
+    Raises:
+        ResponseError: If the header is not in the response (an error or truncated reply, not an empty result)
 
     Notes:
         Used by parsers that have a header line before the actual data lines.
@@ -188,6 +196,8 @@ def _skip_to_header(response: str, header: str) -> list[str]:
         if data_started and line:
             data_lines.append(line)
 
+    if not data_started:
+        raise ResponseError(f"Expected a '{header}' header in response: {response}")
     return data_lines
 
 
@@ -212,7 +222,7 @@ def _parse_device_mode_assignment(line: str) -> tuple[str, str, str | None]:
         raise ResponseError(f"Invalid assignment line format: {line}")
 
     device = parts[0]
-    mode = parts[1]
+    mode = parts[1].lower()  # the controller may show NULL
     target_device = parts[2] if len(parts) > 2 and mode == "single" else None
 
     return device, mode, target_device
@@ -342,7 +352,7 @@ class Version:
                 # Parse system version format like '8.3.1(v8.3.8)' or '8.3.1'
                 if "(" in version_part and ")" in version_part:
                     web_version = version_part.split("(")[0]
-                    core_part = version_part.split("(v")[1].rstrip(")")
+                    core_part = version_part.split("(", 1)[1].rstrip(")").removeprefix("v")
                     return web_version, core_part
                 else:
                     # Fallback if no core version in parentheses
@@ -596,6 +606,8 @@ class DeviceJsonString:
         for device_data in data:
             converted_data = _coerce_fields(cls, device_data)
             if isinstance(device_data.get("group"), list):
+                if not all(isinstance(group_item, dict) for group_item in device_data["group"]):
+                    raise ResponseError(f"Invalid group entries: {device_data['group']!r}")
                 converted_data["group"] = [
                     DeviceJsonStringGroup(name=group_item.get("name", ""), sequence=group_item.get("sequence", 0))
                     for group_item in device_data["group"]
@@ -1327,8 +1339,10 @@ class VideoWallLogicalScreenList:
         if "-" not in parts[0]:
             raise ResponseError(f"Invalid screen header format, missing videowall-scene separator '-': {line}")
 
-        videowall_scene, logical_screen = parts[0].split("_", 1)
-        videowall, scene = videowall_scene.split("-", 1)
+        videowall, scene_screen = parts[0].split("-", 1)
+        if "_" not in scene_screen:
+            raise ResponseError(f"Invalid screen header format, missing logical screen separator '_': {line}")
+        scene, logical_screen = scene_screen.split("_", 1)
         tx = parts[1]
 
         return VideoWallLogicalScreen(videowall=videowall, scene=scene, logical_screen=logical_screen, tx=tx, rows=[])
@@ -1481,18 +1495,14 @@ class MultiviewTile:
         coords = parts[1].split("_")
         scaling = parts[2]
 
-        if len(coords) != 4:
+        if len(coords) != 4 or not all(coord.isdigit() for coord in coords):
             raise ResponseError(f"Invalid tile coordinates: {parts[1]}")
+        if scaling not in ("fit", "stretch"):
+            raise ResponseError(f"Invalid tile scaling '{scaling}', expected 'fit' or 'stretch': {tile_config}")
 
         validated_scaling = cast(Literal["fit", "stretch"], scaling)
-        return cls(
-            tx=tx,
-            x=int(coords[0]),
-            y=int(coords[1]),
-            width=int(coords[2]),
-            height=int(coords[3]),
-            scaling=validated_scaling,
-        )
+        x, y, width, height = (int(coord) for coord in coords)
+        return cls(tx=tx, x=x, y=y, width=width, height=height, scaling=validated_scaling)
 
 
 @dataclass

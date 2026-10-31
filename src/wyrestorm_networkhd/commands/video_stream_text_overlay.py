@@ -20,7 +20,7 @@ class VideoStreamTextOverlayCommands:
         """Configure Text Overlay
 
         Args:
-            text: The text to be displayed
+            text: The text to be displayed; one word, no spaces (the command has no quoting for it)
             position_x: X coordinate of text; must be value between 0~1920
             position_y: Y coordinate of text; must be value between 0~1080
             text_color: Color of text in hex format
@@ -82,6 +82,8 @@ class VideoStreamTextOverlayCommands:
         Response Example: Return data
             receive: config set device osd param Hello 0 0 FFFFFFFF 1 Input1
         """
+        if not text or any(char.isspace() for char in text):
+            raise ValueError(f"text must be one word, as the command can't quote it, got: {text!r}")
         # Validate position parameters
         if not (0 <= position_x <= 1920):
             raise ValueError(f"position_x must be between 0 and 1920, got: {position_x}")

@@ -223,6 +223,15 @@ async def test_foreign_burst_during_matrix_get(ssh_client, device):
     assert [(a.tx, a.rx) for a in matrix.assignments] == [("source1", "display1"), (None, "display2")]
 
 
+async def test_matrix_row_with_a_verb_named_device_is_kept(ssh_client, device):
+    """A TX aliased "scene" starts a reply row with a command verb; it is data, not another session's echo."""
+    device.reply("matrix get", "matrix get\r\nmatrix information:\r\nscene Display1\r\nSource2 Display2\r\n")
+
+    matrix = Matrix.parse(await ssh_client.send_command("matrix get", **FAST))
+
+    assert [(a.tx, a.rx) for a in matrix.assignments] == [("scene", "Display1"), ("Source2", "Display2")]
+
+
 async def test_same_command_from_another_session_is_dropped(ssh_client, device):
     """Another session's repeat of our exact command after our reply must not add bogus assignments."""
     burst = "matrix get\r\nmatrix information:\r\nsource1 display1\r\n"

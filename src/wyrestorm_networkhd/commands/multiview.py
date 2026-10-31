@@ -383,6 +383,8 @@ class MultiviewCommands:
         Response Example: Command acknowledgment
             mview set display1 overlay source1:100_50_256_144:fit source2:0_0_1920_1080:fit success
         """
+        if not tiles:
+            raise ValueError("tiles must not be empty")
         tile_strings = [tile.to_string() for tile in tiles]
         tile_config = " ".join(tile_strings)
         command = f"mview set {rx} {mode} {tile_config}"

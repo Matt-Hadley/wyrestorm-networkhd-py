@@ -617,3 +617,11 @@ class TestMultiviewCommands:
         # Assert
         self.mock_client.send_command.assert_called_once_with(expected_command)
         assert result is True
+
+
+@pytest.mark.asyncio
+async def test_mview_set_custom_without_tiles_is_rejected():
+    client = echoing_client()
+    with pytest.raises(ValueError):
+        await MultiviewCommands(client).mview_set_custom("display1", "tile", [])
+    client.send_command.assert_not_called()

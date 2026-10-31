@@ -8,6 +8,37 @@ and response validation across all command implementations.
 from ..exceptions import CommandError, ResponseError
 
 
+def join_devices(devices: str | list[str]) -> str:
+    """Join device references into the space-separated list a command takes
+
+    Args:
+        devices: A device reference, or a list of them
+
+    Returns:
+        str: The references separated by spaces
+
+    Raises:
+        ValueError: If there are no references, or one is empty
+
+    Notes:
+        A command sent with no device names is not defined by the API, so it is never sent.
+    """
+    names = [devices] if isinstance(devices, str) else list(devices)
+    if not names or not all(isinstance(name, str) and name.strip() for name in names):
+        raise ValueError(f"Device references must be non-empty strings, got: {devices!r}")
+    return " ".join(names)
+
+
+def require_no_quote(data: str) -> None:
+    """Reject data that would end the quoted data argument of a command early
+
+    Raises:
+        ValueError: If data contains a double quote
+    """
+    if '"' in data:
+        raise ValueError(f"Data must not contain a double quote: {data!r}")
+
+
 def strip_echo(response: str, command: str) -> str:
     """Drop the line echoing the command from the start of a response
 
@@ -39,11 +70,12 @@ def require_command_mirror(response: str, expected: str) -> bool:
         ResponseError: If response does not match expected echo
 
     Notes:
-        Succeeds if the response is exactly the expected echo, optionally followed by one identical mirror line.
-        Anything else (such as an error message after the echo) fails.
+        Succeeds if the response is exactly the expected echo, optionally followed by one identical mirror line, which
+        may carry the "receive: " prefix the PDF shows for some commands. Anything else (such as an error message
+        after the echo) fails.
     """
     expected_stripped = expected.strip()
-    lines = [line.strip() for line in response.strip().splitlines()]
+    lines = [line.strip().removeprefix("receive: ") for line in response.strip().splitlines()]
     if lines in ([expected_stripped], [expected_stripped, expected_stripped]):
         return True
     raise ResponseError(f"Unexpected response. Expected echo of: '{expected}', got: '{response}'")
@@ -86,15 +118,16 @@ def require_success_indicator(response: str, expected_start: str | None = None) 
 
     Notes:
         If expected_start is provided, the response must start with it; otherwise ResponseError is raised.
-        If the response contains 'failure', CommandError is raised.
-        If it contains 'success', True is returned.
+        If the last word of the response is 'failure', CommandError is raised.
+        If it is 'success', True is returned.
         Otherwise, ResponseError is raised.
     """
-    lower = response.strip().lower()
+    words = response.lower().split()
     if expected_start and not response.strip().startswith(expected_start):
         raise ResponseError(f"Unexpected response start. Expected to start with: '{expected_start}', got: '{response}'")
-    if "failure" in lower:
+    # Only the last word counts, so a name containing "success" or "failure" is not mistaken for the result
+    if words and words[-1] == "failure":
         raise CommandError(f"Device reported failure: '{response}'")
-    if "success" in lower:
+    if words and words[-1] == "success":
         return True
     raise ResponseError(f"Response missing success/failure indicator: '{response}'")
