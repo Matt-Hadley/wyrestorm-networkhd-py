@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.1.4](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.1.3...v3.1.4) (2026-10-31)
+
+
+### Bug Fixes
+
+* **core:** time-limit opening the SSH shell ([16332a6](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/16332a6781843912d207ecf60e5b3e6babe5b78d))
+* **core:** time-limit opening the SSH shell ([4b33987](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/4b339879c73843404b48df484d0c1cdb21aab3bf))
+
 ## [3.1.3](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.1.2...v3.1.3) (2026-10-31)
 
 
