@@ -1050,22 +1050,12 @@ class TestMediaStreamMatrixSwitchCommands:
 
     @pytest.mark.asyncio
     async def test_matrix_video_set_empty_rx_list(self):
-        """Test matrix video set with empty RX list (trailing space stripped)."""
-        # Arrange
-        tx = "TX1"
-        rx = []
-        expected_response = "matrix video set TX1"  # Response should match stripped command
-        self.mock_client.send_command.return_value = expected_response
-
-        # Act
-        result = await self.commands.matrix_video_set(tx, rx)
-
-        # Assert
-        # The client will receive the original command with trailing space, but send the stripped version
-        # We're mocking at the client level so we can't easily verify the stripping
-        # Just verify the method succeeds
-        self.mock_client.send_command.assert_called_once()
-        assert result is True
+        """An empty RX list is rejected and nothing is sent."""
+        with pytest.raises(ValueError):
+            await self.commands.matrix_video_set("TX1", [])
+        with pytest.raises(ValueError):
+            await self.commands.matrix_set_null([])
+        self.mock_client.send_command.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_matrix_audio_set_single_rx_as_list(self):
@@ -1134,3 +1124,29 @@ class TestMediaStreamMatrixSwitchCommands:
         # Assert
         self.mock_client.send_command.assert_called_once_with(expected_command)
         assert result is True
+
+
+@pytest.mark.asyncio
+async def test_empty_tx_is_rejected():
+    client = echoing_client()
+    commands = MediaStreamMatrixSwitchCommands(client)
+    with pytest.raises(ValueError):
+        await commands.matrix_set("", ["display1"])
+    with pytest.raises(ValueError):
+        await commands.matrix_audio3_set("display1", "")
+    client.send_command.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_infrared2_and_serial2_reject_empty_names():
+    client = echoing_client()
+    commands = MediaStreamMatrixSwitchCommands(client)
+    with pytest.raises(ValueError):
+        await commands.matrix_infrared2_set("", "api")
+    with pytest.raises(ValueError):
+        await commands.matrix_serial2_set("s1", "single", "")
+    with pytest.raises(ValueError):
+        await commands.matrix_infrared2_set_null("")
+    with pytest.raises(ValueError):
+        await commands.matrix_serial2_set_null("")
+    client.send_command.assert_not_called()

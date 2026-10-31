@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from ._response_helpers import require_contains
+from ._response_helpers import join_devices, require_contains
 
 if TYPE_CHECKING:
     from ..core._client import _BaseNetworkHDClient
@@ -76,9 +76,7 @@ class RebootResetCommands:
             source1
             source2
         """
-        if isinstance(devices, str):
-            devices = [devices]
-        device_list = " ".join(devices)
+        device_list = join_devices(devices)
         response = await self.client.send_command(f"config set device reboot {device_list}")
         return require_contains(response, "the following device will reboot now:")
 
@@ -125,8 +123,6 @@ class RebootResetCommands:
             source1
             source2
         """
-        if isinstance(devices, str):
-            devices = [devices]
-        device_list = " ".join(devices)
+        device_list = join_devices(devices)
         response = await self.client.send_command(f"config set device restorefactory {device_list}")
         return require_contains(response, "the following device will restore now:")

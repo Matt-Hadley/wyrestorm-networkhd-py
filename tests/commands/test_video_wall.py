@@ -2,7 +2,7 @@ import pytest
 
 from tests.commands import echoing_client
 from wyrestorm_networkhd.commands.video_wall import VideoWallCommands
-from wyrestorm_networkhd.exceptions import CommandError
+from wyrestorm_networkhd.exceptions import CommandError, ResponseError
 
 
 class TestVideoWallCommands:
@@ -84,12 +84,10 @@ class TestVideoWallCommands:
         expected_response = "unexpected response"
         self.mock_client.send_command.return_value = expected_response
 
-        # Act
-        result = await self.commands.scene_set(videowall, scene, x, y, tx)
-
-        # Assert
+        # Act / Assert
+        with pytest.raises(ResponseError):
+            await self.commands.scene_set(videowall, scene, x, y, tx)
         self.mock_client.send_command.assert_called_once_with(expected_command)
-        assert result is False
 
     @pytest.mark.asyncio
     async def test_vw_change_success(self):
@@ -122,12 +120,10 @@ class TestVideoWallCommands:
         expected_response = "error: invalid screen"
         self.mock_client.send_command.return_value = expected_response
 
-        # Act
-        result = await self.commands.vw_change(videowall, scene, lscreen, tx)
-
-        # Assert
+        # Act / Assert
+        with pytest.raises(ResponseError):
+            await self.commands.vw_change(videowall, scene, lscreen, tx)
         self.mock_client.send_command.assert_called_once_with(expected_command)
-        assert result is False
 
     # =============================================================================
     # 10.2 Video Wall – 'Video Wall within a Wall' Scenes
@@ -468,3 +464,11 @@ class TestVideoWallCommands:
         # Assert
         self.mock_client.send_command.assert_called_once_with(expected_command)
         assert result is True
+
+
+@pytest.mark.asyncio
+async def test_vw_change_accepts_response_structure_without_change():
+    """The PDF's response structure omits "change" while its example has it; both are accepted."""
+    client = echoing_client()
+    client.send_command.return_value = "videowall OfficeVW-Combined_TopTwo tx connect to source1"
+    assert await VideoWallCommands(client).vw_change("OfficeVW", "Combined", "TopTwo", "source1") is True

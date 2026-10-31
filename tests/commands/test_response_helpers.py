@@ -3,8 +3,10 @@
 import pytest
 
 from wyrestorm_networkhd.commands._response_helpers import (
+    join_devices,
     require_command_mirror,
     require_contains,
+    require_no_quote,
     require_success_indicator,
     strip_echo,
 )
@@ -182,7 +184,7 @@ class TestRequireSuccessIndicator:
 
     def test_require_success_indicator_success(self):
         """Test success indicator validation with success."""
-        response = "Operation completed successfully"
+        response = "Operation completed success"
 
         result = require_success_indicator(response)
 
@@ -198,7 +200,7 @@ class TestRequireSuccessIndicator:
 
     def test_require_success_indicator_with_expected_start(self):
         """Test success indicator validation with expected start."""
-        response = "Status: Operation completed successfully"
+        response = "Status: Operation completed success"
         expected_start = "Status:"
 
         result = require_success_indicator(response, expected_start)
@@ -245,7 +247,7 @@ class TestRequireSuccessIndicator:
 
     def test_require_success_indicator_with_whitespace(self):
         """Test success indicator validation with whitespace."""
-        response = "  Operation completed successfully  "
+        response = "  Operation completed success  "
 
         result = require_success_indicator(response)
 
@@ -253,9 +255,56 @@ class TestRequireSuccessIndicator:
 
     def test_require_success_indicator_expected_start_with_whitespace(self):
         """Test success indicator validation with expected start and whitespace."""
-        response = "  Status: Operation completed successfully  "
+        response = "  Status: Operation completed success  "
         expected_start = "Status:"
 
         result = require_success_indicator(response, expected_start)
 
         assert result is True
+
+
+class TestRequireSuccessIndicatorLastWord:
+    """Only the last word decides the result, so names containing success/failure are not misread."""
+
+    def test_name_containing_failure_with_success_result(self):
+        assert require_success_indicator("wscene2 window close Wall-scene failure_test success") is True
+
+    def test_name_containing_success_without_result_word(self):
+        with pytest.raises(ResponseError):
+            require_success_indicator("mscene active display1 success_layout")
+
+    def test_name_containing_success_with_failure_result(self):
+        with pytest.raises(CommandError):
+            require_success_indicator("mscene active display1 success_layout failure")
+
+
+class TestJoinDevices:
+    def test_single_name(self):
+        assert join_devices("display1") == "display1"
+
+    def test_list(self):
+        assert join_devices(["display1", "display2"]) == "display1 display2"
+
+    @pytest.mark.parametrize("devices", [[], "", "  ", ["display1", ""]])
+    def test_no_names_or_empty_name_is_rejected(self, devices):
+        with pytest.raises(ValueError):
+            join_devices(devices)
+
+
+class TestRequireNoQuote:
+    def test_plain_data_passes(self):
+        require_no_quote("vol +80dB")
+
+    def test_quote_is_rejected(self):
+        with pytest.raises(ValueError):
+            require_no_quote('say "hi"')
+
+
+def test_require_command_mirror_accepts_receive_acknowledgment():
+    assert (
+        require_command_mirror(
+            "config set device osd on Input1\nreceive: config set device osd on Input1",
+            "config set device osd on Input1",
+        )
+        is True
+    )

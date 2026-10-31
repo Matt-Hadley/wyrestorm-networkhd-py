@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Literal
 
-from ._response_helpers import require_command_mirror
+from ._response_helpers import join_devices, require_command_mirror
 
 if TYPE_CHECKING:
     from ..core._client import _BaseNetworkHDClient
@@ -52,10 +52,8 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix set source1 display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
-        command = f"matrix set {tx} {rx_list}"
+        rx_list = join_devices(rx)
+        command = f"matrix set {join_devices(tx)} {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
 
@@ -92,9 +90,7 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix set null display1 display2
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
+        rx_list = join_devices(rx)
         command = f"matrix set null {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -140,10 +136,8 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix video set source1 display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
-        command = f"matrix video set {tx} {rx_list}"
+        rx_list = join_devices(rx)
+        command = f"matrix video set {join_devices(tx)} {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
 
@@ -180,9 +174,7 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix video set null display1 display2
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
+        rx_list = join_devices(rx)
         command = f"matrix video set null {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -235,10 +227,8 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix audio set source1 display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
-        command = f"matrix audio set {tx} {rx_list}"
+        rx_list = join_devices(rx)
+        command = f"matrix audio set {join_devices(tx)} {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
 
@@ -280,9 +270,7 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix audio set null display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
+        rx_list = join_devices(rx)
         command = f"matrix audio set null {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -321,10 +309,8 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix audio2 set source1 display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
-        command = f"matrix audio2 set {tx} {rx_list}"
+        rx_list = join_devices(rx)
+        command = f"matrix audio2 set {join_devices(tx)} {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
 
@@ -360,9 +346,7 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix audio2 set null display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
+        rx_list = join_devices(rx)
         command = f"matrix audio2 set null {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -397,7 +381,7 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Return data
             matrix audio3 set Display1 Source1
         """
-        command = f"matrix audio3 set {rx} {tx}"
+        command = f"matrix audio3 set {join_devices(rx)} {join_devices(tx)}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
 
@@ -448,10 +432,8 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix usb set source1 display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
-        command = f"matrix usb set {tx} {rx_list}"
+        rx_list = join_devices(rx)
+        command = f"matrix usb set {join_devices(tx)} {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
 
@@ -485,9 +467,7 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix usb set null display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
+        rx_list = join_devices(rx)
         command = f"matrix usb set null {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -535,10 +515,8 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix infrared set source1 display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
-        command = f"matrix infrared set {tx} {rx_list}"
+        rx_list = join_devices(rx)
+        command = f"matrix infrared set {join_devices(tx)} {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
 
@@ -571,9 +549,7 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix infrared set null display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
+        rx_list = join_devices(rx)
         command = f"matrix infrared set null {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -646,13 +622,12 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix infrared2 set source1 all
         """
-        if mode == "single" and target_device is None:
-            raise ValueError("target_device is required when mode is 'single'")
-
         if mode == "single":
-            command = f"matrix infrared2 set {device} single {target_device}"
+            if target_device is None:
+                raise ValueError("target_device is required when mode is 'single'")
+            command = f"matrix infrared2 set {join_devices(device)} single {join_devices(target_device)}"
         else:
-            command = f"matrix infrared2 set {device} {mode}"
+            command = f"matrix infrared2 set {join_devices(device)} {mode}"
 
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -686,7 +661,7 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix infrared2 set display1 null
         """
-        command = f"matrix infrared2 set {device} null"
+        command = f"matrix infrared2 set {join_devices(device)} null"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
 
@@ -731,10 +706,8 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix serial set source1 display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
-        command = f"matrix serial set {tx} {rx_list}"
+        rx_list = join_devices(rx)
+        command = f"matrix serial set {join_devices(tx)} {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
 
@@ -766,9 +739,7 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix serial set null display1 display2 display3 display4
         """
-        if isinstance(rx, str):
-            rx = [rx]
-        rx_list = " ".join(rx)
+        rx_list = join_devices(rx)
         command = f"matrix serial set null {rx_list}"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -840,13 +811,12 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix serial2 set source1 all
         """
-        if mode == "single" and target_device is None:
-            raise ValueError("target_device is required when mode is 'single'")
-
         if mode == "single":
-            command = f"matrix serial2 set {device} single {target_device}"
+            if target_device is None:
+                raise ValueError("target_device is required when mode is 'single'")
+            command = f"matrix serial2 set {join_devices(device)} single {join_devices(target_device)}"
         else:
-            command = f"matrix serial2 set {device} {mode}"
+            command = f"matrix serial2 set {join_devices(device)} {mode}"
 
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)
@@ -880,6 +850,6 @@ class MediaStreamMatrixSwitchCommands:
         Response Example: Command acknowledgment
             matrix serial2 set display1 null
         """
-        command = f"matrix serial2 set {device} null"
+        command = f"matrix serial2 set {join_devices(device)} null"
         response = await self.client.send_command(command)
         return require_command_mirror(response, command)

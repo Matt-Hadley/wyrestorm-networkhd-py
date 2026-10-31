@@ -28,6 +28,7 @@ from wyrestorm_networkhd.models.api_query import (
     DeviceStatus,
     EndpointAliasHostname,
     IpSetting,
+    Matrix,
     MatrixAudio3,
     MatrixInfrared2,
     MatrixSerial2,
@@ -472,10 +473,9 @@ class TestParsingUtilities:
     def test_skip_to_header_missing_header(self, api_v6_7_responses):
         """Test header skipping with missing header."""
         response = api_v6_7_responses["command_echo_no_header"]
-        result = _skip_to_header(response, "matrix information:")
-
-        # Should return empty list when header not found
-        assert result == []
+        # A reply without the header is an error or truncated reply, not an empty result
+        with pytest.raises(ResponseError, match="Expected a 'matrix information:' header"):
+            _skip_to_header(response, "matrix information:")
 
     def test_parse_device_mode_assignment_success(self):
         """Test successful device mode assignment parsing."""
@@ -1487,7 +1487,7 @@ class TestVideoWallSceneList:
 
     @pytest.mark.parametrize("response", ["scene list:\nnodash", "something else"])
     def test_parse_invalid_scene_list_raises(self, response):
-        with pytest.raises(ResponseError, match="No valid scenes found in response"):
+        with pytest.raises(ResponseError, match="No valid scenes found in response|Expected a 'scene list:' header"):
             VideoWallSceneList.parse(response)
 
     def test_parse_with_command_echo(self):
@@ -1538,10 +1538,9 @@ class TestPresetMultiviewLayoutList:
         with pytest.raises(ValueError, match="Invalid preset multiview layout line format"):
             PresetMultiviewLayoutList.parse(response)
 
-    def test_parse_empty_response(self, api_v6_7_responses):
+    def test_parse_empty_response(self):
         """Test parsing with empty response."""
-        response = api_v6_7_responses["empty_scene_list"]
-        layout_list = PresetMultiviewLayoutList.parse(response)
+        layout_list = PresetMultiviewLayoutList.parse("mscene list:")
 
         assert len(layout_list.multiview_layouts) == 0
 
@@ -2056,3 +2055,47 @@ class TestDeviceListErrorEntries:
         assert rx.audio_bitrate == 1536000
         assert rx.stream_error_count == 0
         assert rx.hdcp_status == "hdcp14"
+
+
+class TestAuditRegressions:
+    """Replies that used to parse wrongly or raise a non-library error."""
+
+    @pytest.mark.parametrize("response", ["", "matrix get", 'matrix get foo\n"foo" does not exist.'])
+    def test_matrix_reply_without_header_raises(self, response):
+        with pytest.raises(ResponseError):
+            Matrix.parse(response)
+
+    def test_videowall_name_with_underscore(self):
+        screens = VideoWallLogicalScreenList.parse(
+            "Video wall information:\nOffice_VW-Combined_Top source1\nRow 1: d1 d2"
+        ).logical_screens
+        assert (screens[0].videowall, screens[0].scene, screens[0].logical_screen) == ("Office_VW", "Combined", "Top")
+
+    def test_core_version_without_v(self):
+        version = Version.parse("API version: v1.2\nSystem version: v8.3.1(8.3.8)")
+        assert (version.web_version, version.core_version) == ("8.3.1", "8.3.8")
+
+    def test_uppercase_null_mode(self):
+        assignment = MatrixInfrared2.parse("matrix infrared2 information:\ndisplay2 NULL").assignments[0]
+        assert assignment.mode == "null"
+
+    def test_malformed_nested_device_value_skips_only_that_device(self):
+        devices = DeviceInfo.parse(
+            '{"devices":[{"aliasname":"a","name":"n","sinkpower":{"mode":"CEC","cec":"null"}},'
+            '{"aliasname":"b","name":"m"}]}'
+        )
+        assert [device.aliasname for device in devices] == ["b"]
+
+    def test_malformed_devicejsonstring_group_raises(self):
+        with pytest.raises(ResponseError):
+            DeviceJsonString.parse('[{"aliasName":"a","trueName":"n","deviceType":"Transmitter","group":["g"]}]')
+
+    @pytest.mark.parametrize("tile", ["s:a_0_1_2:fit", "s:0_0_1_1:zoom"])
+    def test_invalid_tile_raises_response_error(self, tile):
+        with pytest.raises(ResponseError):
+            MultiviewTile.parse_tile_config(tile)
+
+    @pytest.mark.parametrize("entries", ["[null]", '["x"]'])
+    def test_device_entries_that_are_not_objects_raise_response_error(self, entries):
+        with pytest.raises(ResponseError):
+            DeviceStatus.parse(f'devices status info:\n{{"devices status": {entries}}}')

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Literal
 
-from ._response_helpers import require_command_mirror
+from ._response_helpers import join_devices, require_command_mirror
 
 if TYPE_CHECKING:
     from ..core._client import _BaseNetworkHDClient
@@ -63,7 +63,7 @@ class APINotificationsCommands:
         Response Example: Command acknowledgment
             config set device cec notify on ALL_RX
         """
-        device_list = " ".join(devices) if isinstance(devices, list) else devices
+        device_list = join_devices(devices)
 
         command = f"config set device cec notify {state} {device_list}"
         response = await self.client.send_command(command)

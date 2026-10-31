@@ -167,3 +167,13 @@ class TestRebootResetCommands:
         # Assert
         self.mock_client.send_command.assert_called_once_with("config set device restorefactory TX-Main RX-Display")
         assert result is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["set_device_reboot", "config_set_device_restorefactory"])
+async def test_empty_device_list_is_rejected(method):
+    """With no device named nothing is sent, as the API doesn't define the command without one."""
+    client = echoing_client()
+    with pytest.raises(ValueError):
+        await getattr(RebootResetCommands(client), method)([])
+    client.send_command.assert_not_called()

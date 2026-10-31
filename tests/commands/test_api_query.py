@@ -896,3 +896,23 @@ class TestAPIQueryCommands:
         # Assert
         self.mock_client.send_command.assert_called_once_with("mview get NonExistentDecoder")
         assert len(result.configurations) == 0
+
+
+@pytest.mark.asyncio
+async def test_matrix_get_takes_a_single_name_and_rejects_empty_names():
+    """A single string is one device, not a sequence of characters."""
+    client = echoing_client()
+    client.send_command.return_value = "matrix information:\nsource1 display1"
+    commands = APIQueryCommands(client)
+    await commands.matrix_get("display1")
+    client.send_command.assert_called_once_with("matrix get display1")
+    with pytest.raises(ValueError):
+        await commands.matrix_get(["display1", ""])
+
+
+@pytest.mark.asyncio
+async def test_matrix_audio3_get_rejects_tx_without_rx():
+    client = echoing_client()
+    with pytest.raises(ValueError):
+        await APIQueryCommands(client).matrix_audio3_get(tx_device="Source1")
+    client.send_command.assert_not_called()

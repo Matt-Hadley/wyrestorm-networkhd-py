@@ -49,11 +49,20 @@ _MAX_LINE_LEN = 65536
 # A continuation line of a ``notify irinfo`` notification: hex words, optionally ending with the closing quote
 _IRINFO_DATA = re.compile(r'^[0-9A-Fa-f]+(?:\s+[0-9A-Fa-f]+)*\s*"?$')
 
-# First words of the commands this library sends (the command strings in commands/*.py). The controller echoes every
-# session's commands to every session, so a line starting with one of these may be another client's command echo.
-_COMMAND_VERBS = frozenset(
-    {"cec", "config", "infrared", "matrix", "mscene", "mview", "scene", "serial", "vw", "wscene2"}
-)
+# First and second words of the commands this library sends (the command strings in commands/*.py). The controller
+# echoes every session's commands to every session, so a line starting with one of these may be another client's
+# command echo. The second word keeps a reply row whose first device happens to be named like a verb ("scene display1")
+# from being taken for one; cec, infrared and serial are followed by quoted data or an option instead.
+_COMMAND_WORDS = {
+    "config": {"get", "set"},
+    "matrix": {"audio", "audio2", "audio3", "get", "infrared", "infrared2", "serial", "serial2", "set", "usb", "video"},
+    "mscene": {"active", "change", "get", "set"},
+    "mview": {"get", "set"},
+    "scene": {"active", "get", "set"},
+    "vw": {"change", "get"},
+    "wscene2": {"active", "get", "window"},
+}
+_DATA_COMMAND_VERBS = frozenset({"cec", "infrared", "serial"})
 
 
 def _is_foreign_echo(line: str, command: str) -> bool:
@@ -65,13 +74,19 @@ def _is_foreign_echo(line: str, command: str) -> bool:
     own command after our echo is another session's and is dropped by the caller.
     """
     words = line.split()
+    if len(words) < 2:
+        return False
+    verb, second = words[0], words[1]
+    if verb in _DATA_COMMAND_VERBS:
+        is_command = second.startswith(('"', "-"))
+    else:
+        is_command = second in _COMMAND_WORDS.get(verb, ())
     return (
-        bool(words)
-        and words[0] in _COMMAND_VERBS
+        is_command
         and line != command
         and not line.endswith(":")
         and words[-1].lower() not in ("success", "failure")
-        and not (len(words) > 1 and words[1].endswith("'s"))
+        and not second.endswith("'s")
     )
 
 
@@ -485,7 +500,13 @@ class _BaseNetworkHDClient(ABC):
                 queue: asyncio.Queue[str | None] = asyncio.Queue()
                 self._response_queue = queue
                 self.logger.debug(f"Sending command: {command}")
-                await self._write(command)
+                try:
+                    await self._write(command)
+                except NetworkHDError:
+                    raise
+                except OSError as e:
+                    # The link can drop after the check above; report it as the library error the docstring promises
+                    raise ConnectionLostError(self._target, f"write failed: {e!r}") from e
                 self._record_command_sent()
                 lines = await self._collect_response(command, queue, response_timeout, response_line_timeout)
                 response = self._parse_response(command, lines)

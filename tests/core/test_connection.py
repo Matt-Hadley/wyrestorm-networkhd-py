@@ -256,3 +256,16 @@ async def test_cancelled_connect_closes_the_session(device):
     assert client.get_connection_state() == "disconnected"
     ssh = device.ssh_clients[-1]
     assert ssh.closed and ssh.transport is not None and not ssh.transport.active
+
+
+@pytest.mark.asyncio
+async def test_write_failing_on_a_dropped_link_raises_connection_lost(ssh_client, device, monkeypatch):
+    """The link can die after the connected check; the socket error is reported as ConnectionLostError."""
+
+    def fail(_data: bytes) -> None:
+        raise OSError("Socket is closed")
+
+    monkeypatch.setattr(device.shell, "sendall", fail)
+
+    with pytest.raises(ConnectionLostError, match="Socket is closed"):
+        await ssh_client.send_command("cmd", **FAST)

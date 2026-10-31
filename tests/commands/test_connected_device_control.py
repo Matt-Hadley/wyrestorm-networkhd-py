@@ -337,20 +337,10 @@ class TestConnectedDeviceControlCommands:
 
     @pytest.mark.asyncio
     async def test_set_device_sinkpower_empty_rx_list(self):
-        """Test setting device sinkpower with empty RX list."""
-        # Arrange
-        power = "on"
-        rx_list = []
-        expected_command = "config set device sinkpower on "
-        expected_response = "config set device sinkpower on"
-        self.mock_client.send_command.return_value = expected_response
-
-        # Act
-        result = await self.commands.config_set_device_sinkpower(power, rx_list)
-
-        # Assert
-        self.mock_client.send_command.assert_called_once_with(expected_command)
-        assert result is True
+        """An empty RX list is rejected and nothing is sent."""
+        with pytest.raises(ValueError):
+            await self.commands.config_set_device_sinkpower("on", [])
+        self.mock_client.send_command.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_set_device_cec_with_whitespace_in_response(self):
@@ -405,24 +395,11 @@ class TestConnectedDeviceControlCommands:
 
     @pytest.mark.asyncio
     async def test_serial_command_with_quotes_in_data(self):
-        """Test serial command with quotes in data."""
-        # Arrange
-        baud = 9600
-        bits = 8
-        parity = "n"
-        stop = 1
-        cr = False
-        lf = False
-        hex_format = False
-        data = 'TEST "DATA" STRING'
-        device = "RX1"
-        expected_command = 'serial -b 9600-8n1 -r off -n off -h off "TEST "DATA" STRING" RX1'
-        expected_response = 'serial -b 9600-8n1 -r off -n off -h off "TEST "DATA" STRING" RX1'
-        self.mock_client.send_command.return_value = expected_response
-
-        # Act
-        result = await self.commands.serial(baud, bits, parity, stop, cr, lf, hex_format, data, device)
-
-        # Assert
-        self.mock_client.send_command.assert_called_once_with(expected_command)
-        assert result is True
+        """Data containing a quote would end the quoted argument early, so it is rejected and nothing is sent."""
+        with pytest.raises(ValueError):
+            await self.commands.serial(9600, 8, "n", 1, False, False, False, 'TEST "DATA" STRING', "RX1")
+        with pytest.raises(ValueError):
+            await self.commands.cec('FF"36', "RX1")
+        with pytest.raises(ValueError):
+            await self.commands.infrared('0000"0067', "RX1")
+        self.mock_client.send_command.assert_not_called()

@@ -20,14 +20,14 @@ class TestVideoStreamTextOverlayCommands:
     async def test_set_device_osd_param_success(self):
         """Test configuring text overlay parameters."""
         # Arrange
-        text = "Test Message"
+        text = "TestMessage"
         position_x = 100
         position_y = 200
         text_color = "FFFF0000"
         text_size = 2
         tx = "TX1"
-        expected_command = "config set device osd param Test Message 100 200 FFFF0000 2 TX1"
-        expected_response = "config set device osd param Test Message 100 200 FFFF0000 2 TX1"
+        expected_command = "config set device osd param TestMessage 100 200 FFFF0000 2 TX1"
+        expected_response = "config set device osd param TestMessage 100 200 FFFF0000 2 TX1"
         self.mock_client.send_command.return_value = expected_response
 
         # Act
@@ -43,14 +43,14 @@ class TestVideoStreamTextOverlayCommands:
     async def test_set_device_osd_param_boundary_values(self):
         """Test configuring text overlay with boundary values."""
         # Arrange
-        text = "Boundary Test"
+        text = "BoundaryTest"
         position_x = 0
         position_y = 1080
         text_color = "FFFFFFFF"
         text_size = 4
         tx = "TX-Main"
-        expected_command = "config set device osd param Boundary Test 0 1080 FFFFFFFF 4 TX-Main"
-        expected_response = "config set device osd param Boundary Test 0 1080 FFFFFFFF 4 TX-Main"
+        expected_command = "config set device osd param BoundaryTest 0 1080 FFFFFFFF 4 TX-Main"
+        expected_response = "config set device osd param BoundaryTest 0 1080 FFFFFFFF 4 TX-Main"
         self.mock_client.send_command.return_value = expected_response
 
         # Act
@@ -66,14 +66,14 @@ class TestVideoStreamTextOverlayCommands:
     async def test_set_device_osd_param_max_boundaries(self):
         """Test configuring text overlay with maximum boundary values."""
         # Arrange
-        text = "Max Position"
+        text = "MaxPosition"
         position_x = 1920
         position_y = 0
         text_color = "FF00FFFF"
         text_size = 1
         tx = "TX2"
-        expected_command = "config set device osd param Max Position 1920 0 FF00FFFF 1 TX2"
-        expected_response = "config set device osd param Max Position 1920 0 FF00FFFF 1 TX2"
+        expected_command = "config set device osd param MaxPosition 1920 0 FF00FFFF 1 TX2"
+        expected_response = "config set device osd param MaxPosition 1920 0 FF00FFFF 1 TX2"
         self.mock_client.send_command.return_value = expected_response
 
         # Act
@@ -318,3 +318,28 @@ class TestVideoStreamTextOverlayCommands:
             VideoStreamTextOverlayCommands.get_color_hex("black", "nhd200")
 
         assert "Color 'black' not available for nhd200" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_set_device_osd_param_accepts_receive_acknowledgment():
+    """The PDF shows the acknowledgment as 'receive: <command>' after the echo."""
+    client = echoing_client()
+    client.send_command.return_value = "receive: config set device osd param Hello 0 0 FFFFFFFF 1 Input1"
+    commands = VideoStreamTextOverlayCommands(client)
+    assert await commands.config_set_device_osd_param("Hello", 0, 0, "FFFFFFFF", 1, "Input1") is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text", ["", "Living Room"])
+async def test_set_device_osd_param_rejects_text_the_command_cannot_carry(text):
+    client = echoing_client()
+    with pytest.raises(ValueError):
+        await VideoStreamTextOverlayCommands(client).config_set_device_osd_param(text, 0, 0, "FFFFFFFF", 1, "Input1")
+    client.send_command.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_set_device_osd_accepts_receive_acknowledgment():
+    client = echoing_client()
+    client.send_command.return_value = "receive: config set device osd on Input1"
+    assert await VideoStreamTextOverlayCommands(client).config_set_device_osd("on", "Input1") is True
