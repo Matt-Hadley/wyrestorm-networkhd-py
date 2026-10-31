@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.1.3](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.1.2...v3.1.3) (2026-10-31)
+
+
+### Bug Fixes
+
+* validate command inputs and harden reply parsing ([01da1ac](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/01da1ac85cf4642eb9881ab8fa8069730262f297))
+* validate command inputs and harden reply parsing ([4e96b7d](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/commit/4e96b7dd0dfa408806b5ae421285a475aaca7d97))
+
 ## [3.1.2](https://github.com/Matt-Hadley/wyrestorm-networkhd-py/compare/v3.1.1...v3.1.2) (2026-10-30)
 
 
