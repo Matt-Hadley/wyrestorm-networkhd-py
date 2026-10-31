@@ -6,8 +6,10 @@ tests exercise the real connect(), reader task, framing and send_command() code.
 """
 
 import asyncio
+import threading
 import time
 
+import paramiko
 import pytest
 import pytest_asyncio
 
@@ -27,6 +29,9 @@ class FakeDevice:
         self.connect_errors: list[Exception] = []
         self.connect_attempts = 0
         self.connect_delay = 0.0  # seconds the (threaded) SSH connect blocks for
+        self.shell_hangs = (
+            False  # invoke_shell() blocks until the client is closed, like a shell request never answered
+        )
         self.ssh_clients: list[FakeSSHClient] = []
         self.serial_ports: list[FakeSerialPort] = []
 
@@ -102,6 +107,7 @@ class FakeSSHClient:
         self.transport: FakeTransport | None = None
         self.shell: FakeShell | None = None
         self.closed = False
+        self.closed_event = threading.Event()
         # Created on the event loop thread; connect() and invoke_shell() then run in worker threads
         self.loop = asyncio.get_running_loop()
         device.ssh_clients.append(self)
@@ -120,11 +126,15 @@ class FakeSSHClient:
         return self.transport
 
     def invoke_shell(self) -> FakeShell:
+        if self.device.shell_hangs:
+            self.closed_event.wait()
+            raise paramiko.SSHException("Channel closed.")
         self.shell = FakeShell(self.device, self.loop)
         return self.shell
 
     def close(self) -> None:
         self.closed = True
+        self.closed_event.set()
         if self.transport:
             self.transport.active = False
 

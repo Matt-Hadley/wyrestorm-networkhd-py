@@ -269,3 +269,15 @@ async def test_write_failing_on_a_dropped_link_raises_connection_lost(ssh_client
 
     with pytest.raises(ConnectionLostError, match="Socket is closed"):
         await ssh_client.send_command("cmd", **FAST)
+
+
+@pytest.mark.asyncio
+async def test_unanswered_shell_request_times_out(device):
+    """A controller that accepts the login but never answers the shell request must not hang connect()."""
+    device.shell_hangs = True
+    client = make_ssh_client(timeout=0.2)
+
+    with pytest.raises(ConnectionError, match="Timed out opening the SSH shell"):
+        await asyncio.wait_for(client.connect(), timeout=2.0)
+    assert device.ssh_clients[-1].closed
+    assert not client.is_connected()
