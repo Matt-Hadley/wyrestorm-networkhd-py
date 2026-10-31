@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import builtins
 import contextlib
 import hashlib
 import re
@@ -248,7 +249,20 @@ class NetworkHDClientSSH(_BaseNetworkHDClient):
         transport = self.client.get_transport()
         if transport is not None:
             transport.set_keepalive(_KEEPALIVE_INTERVAL)
-        shell = await _in_thread(self.client.invoke_shell)
+        # paramiko waits for the shell request's reply with no time limit; closing the client ends that wait
+        shell_future = asyncio.ensure_future(asyncio.to_thread(self.client.invoke_shell))
+        try:
+            await asyncio.wait_for(asyncio.shield(shell_future), self.timeout)
+        except builtins.TimeoutError:
+            await asyncio.to_thread(self.client.close)
+            with contextlib.suppress(Exception):
+                await shell_future
+            raise ConnectionError(f"Timed out opening the SSH shell after {self.timeout}s") from None
+        except asyncio.CancelledError:
+            with contextlib.suppress(Exception):
+                await shell_future
+            raise
+        shell = shell_future.result()
         shell.settimeout(self.timeout)
         self.shell = shell
         self._host_key_fingerprint = policy.presented
